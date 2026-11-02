@@ -4,7 +4,8 @@
   "description": "Autonomous Gemini Coding Agent with security sandboxing, streaming, and tool execution.",
   "main": "index.js",
   "scripts": {
-    "test": "node --test phase_a.test.js phase_b.test.js search_code.test.js edit_file.test.js",
+    "test": "node cross_platform.test.js",
+    "test:v18": "node --test phase_a.test.js phase_b.test.js search_code.test.js edit_file.test.js",
     "test:calculator": "node calculator.test.js"
   },
   "keywords": [],

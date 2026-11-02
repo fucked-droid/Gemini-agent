@@ -18,7 +18,7 @@ The agent features progressive token streaming, multi-turn conversational memory
 
 ## Tool Ecosystem
 
-The agent exposes 7 specialized developer tools:
+The agent exposes 10 specialized developer tools:
 
 1. **`list_files`**  
    Enumerates files and directories within the project workspace.
@@ -27,7 +27,7 @@ The agent exposes 7 specialized developer tools:
    Reads text files inside the project workspace with strict path traversal validation.
 
 3. **`write_file`**  
-   Creates or completely replaces a file in the workspace. Protected by an interactive user approval gate and secret file blocking.
+   Creates or completely replaces a file in the workspace. Protected by safety validation and approval gate.
 
 4. **`edit_file`** (Incremental Editing Tool)  
    Performs targeted, unambiguous text replacements in existing files:
@@ -35,20 +35,28 @@ The agent exposes 7 specialized developer tools:
    - Enforces unique matching (rejects missing or ambiguous matches without modifying the file).
    - Preserves surrounding indentation, unrelated lines, and line-ending styles (`\r\n` vs `\n`).
    - Prevents modifications to protected secret/session files (`.env`, `.gemini_sessions.json`).
-   - Requires explicit interactive user approval.
    - Also accepts tool alias `replace_block`.
 
 5. **`run_command`**  
-   Executes Windows terminal development commands in the project workspace with strict security filtering and user approval gates.
+   Executes cross-platform shell commands (`bash` on Linux/macOS, `cmd.exe` on Windows) with strict command blacklisting.
 
 6. **`run_executable`**  
-   Executes explicitly whitelisted executables (e.g., Python virtual environment binaries) using direct `child_process.execFile` argument arrays.
+   Executes explicitly whitelisted executables (e.g., Python virtual environment binaries or system `python3`) using direct `child_process.execFile` argument arrays.
 
 7. **`search_code`**  
    Searches the codebase for literal strings or regular expressions:
    - Recursively traverses directories with automatic early-exit when reaching the 100-match cap.
    - Skips excluded directories (`.git`, `node_modules`, `dist`, `build`, `__pycache__`, `.venv`, `venv`).
    - Skips binary file extensions (`.png`, `.jpg`, `.pdf`, `.zip`, `.exe`, etc.).
+
+8. **`search_web`**  
+   Searches the web for up-to-date documentation, API changes, and solutions to cryptic runtime errors.
+
+9. **`git_status`**  
+   Inspects working tree status and uncommitted modified/untracked files.
+
+10. **`git_diff`**  
+   Inspects granular line-by-line diffs of uncommitted changes.
 
 ---
 
@@ -109,9 +117,17 @@ GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
 3. **Launch the Agent:**
-   ```bash
-   node index.js
-   ```
+   - **Interactive Mode:**
+     ```bash
+     node index.js
+     ```
+   - **Autonomous Mode (Auto-Approve):**
+     ```bash
+     node index.js --auto
+     # or: node index.js -y
+     # or: export AUTO_APPROVE=1 && node index.js
+     ```
+     *In Autonomous Mode, file modifications and safe commands proceed automatically without stopping for interactive prompts.*
 
 ### CLI Session Commands
 While running in interactive mode, you can enter tasks or use the following commands:

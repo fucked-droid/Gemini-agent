@@ -1,28 +1,72 @@
-require("dotenv").config();
-const { GoogleGenAI } = require("@google/genai");
+// Safe environment loader (tries dotenv, falls back to zero-dependency native parser)
+try {
+  require("dotenv").config();
+} catch (_) {
+  // Built-in .env parser fallback
+  const fsSync = require("fs");
+  const envPath = require("path").resolve(process.cwd(), ".env");
+  if (fsSync.existsSync(envPath)) {
+    try {
+      const lines = fsSync.readFileSync(envPath, "utf8").split(/\r?\n/);
+      for (const line of lines) {
+        const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match && !process.env[match[1]]) {
+          let val = (match[2] || "").trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          process.env[match[1]] = val;
+        }
+      }
+    } catch (_) {}
+  }
+}
+
+let GoogleGenAI;
+try {
+  ({ GoogleGenAI } = require("@google/genai"));
+} catch (_) {
+  // GoogleGenAI will be loaded if available or mocked in offline test mode
+}
+
 const fs = require("fs/promises");
 const fsSync = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const readline = require("readline");
 
-// Verify how GEMINI_API_KEY is loaded and passed to GoogleGenAI.
-// Check for a missing or empty key at startup without printing the key itself.
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey || !apiKey.trim()) {
-  console.error("[FATAL ERROR] GEMINI_API_KEY environment variable is missing or empty.");
-  process.exit(1);
-}
+// Autonomous execution flag: enabled via --auto, -y, --yes or AUTO_APPROVE=1
+const AUTO_APPROVE =
+  process.argv.includes("--auto") ||
+  process.argv.includes("-y") ||
+  process.argv.includes("--yes") ||
+  process.env.AUTO_APPROVE === "true" ||
+  process.env.AUTO_APPROVE === "1";
 
-const ai = new GoogleGenAI({
-  apiKey: apiKey,
-});
-
+const WORKSPACE = path.resolve(process.cwd());
+const SESSION_FILE = path.join(WORKSPACE, ".gemini_sessions.json");
 const MODEL = "gemini-3.5-flash-lite";
 const MAX_STEPS = 20;
 const MAX_REPAIR_ATTEMPTS = 5;
-const WORKSPACE = path.resolve(process.cwd());
-const SESSION_FILE = path.join(WORKSPACE, ".gemini_sessions.json");
+
+// Lazy GenAI client factory to allow importing functions without requiring immediate API key
+function getGenAIClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error("[FATAL ERROR] GEMINI_API_KEY environment variable is missing or empty.");
+  }
+  if (!GoogleGenAI) {
+    ({ GoogleGenAI } = require("@google/genai"));
+  }
+  return new GoogleGenAI({ apiKey: apiKey.trim() });
+}
+
+let ai = null;
+try {
+  if (process.env.GEMINI_API_KEY) {
+    ai = getGenAIClient();
+  }
+} catch (_) {}
 
 // Helper to check if an error is an authentication error (400 API_KEY_INVALID, 401, 403, or status/message matching auth failures)
 function isAuthenticationError(err) {
@@ -42,14 +86,18 @@ function isAuthenticationError(err) {
   return false;
 }
 
-// 1. Python Environment Discovery with strict validation
+// 1. Python Environment Discovery with cross-platform validation
 function discoverPythonInterpreter() {
+  const isWindows = process.platform === "win32";
   const candidates = [
     path.normalize("H:\\My Drive\\Sahil Sangare\\Practice\\Daily-Market-Regime-Engine\\.venv\\Scripts\\python.exe"),
     path.join(WORKSPACE, ".venv", "Scripts", "python.exe"),
     path.join(WORKSPACE, ".venv", "bin", "python"),
     path.join(WORKSPACE, "venv", "Scripts", "python.exe"),
     path.join(WORKSPACE, "venv", "bin", "python"),
+    "/root/.venv/bin/python",
+    "/usr/bin/python3",
+    "/usr/local/bin/python3",
   ];
 
   for (const candidate of candidates) {
@@ -57,6 +105,17 @@ function discoverPythonInterpreter() {
       console.log("[SECURITY] Discovered authorized Python interpreter:", candidate);
       return path.normalize(candidate);
     }
+  }
+
+  if (!isWindows) {
+    try {
+      const { execSync } = require("child_process");
+      const out = execSync("which python3 || which python", { encoding: "utf8" }).trim();
+      if (out && fsSync.existsSync(out)) {
+        console.log("[SECURITY] Discovered system Python interpreter:", out);
+        return out;
+      }
+    } catch (_) {}
   }
 
   console.warn("[SECURITY WARNING] No authorized Python virtual environment interpreter found in standard paths!");
@@ -117,7 +176,7 @@ const tools = [
   {
     type: "function",
     name: "run_command",
-    description: "Run a Windows development command in the project workspace (requires user approval).",
+    description: "Run a cross-platform development shell command in the project workspace (requires user approval or autonomous mode).",
     parameters: {
       type: "object",
       properties: {
@@ -153,6 +212,38 @@ const tools = [
         isRegex: { type: "boolean", description: "Whether query is a regular expression (default false)." },
       },
       required: ["query"],
+    },
+  },
+  {
+    type: "function",
+    name: "search_web",
+    description: "Search the web for up-to-date documentation, API specs, error solutions, and library usage.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Web search query." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    type: "function",
+    name: "git_status",
+    description: "Get current git status and changed files in the workspace.",
+    parameters: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    type: "function",
+    name: "git_diff",
+    description: "Get git diff of uncommitted changes.",
+    parameters: {
+      type: "object",
+      properties: {
+        cached: { type: "boolean", description: "Whether to view staged changes (default false)." },
+      },
     },
   },
 ];
@@ -297,9 +388,15 @@ async function editFile(filePath, target, replacement, rootDir = WORKSPACE) {
   return `Successfully replaced target text in ${filePath}.`;
 }
 
-// 2. Robust Non-Interactive Approval Gate with Stdin Check and Timeout
+// 2. Robust Non-Interactive Approval Gate with Stdin Check, Timeout, and Autonomous Mode
 function askApproval(questionText) {
   return new Promise((resolve) => {
+    if (AUTO_APPROVE || process.env.AUTO_APPROVE === "true" || process.env.AUTO_APPROVE === "1") {
+      console.log(`[SECURITY APPROVAL GATE] Auto-approved (Autonomous Mode): ${questionText.trim()}`);
+      resolve(true);
+      return;
+    }
+
     if (!process.stdin.isTTY) {
       console.warn("[SECURITY] Non-interactive execution detected (stdin is not a TTY). Defaulting approval to DENY.");
       resolve(false);
@@ -432,6 +529,32 @@ function isDangerousCommand(command) {
     return false;
   }
 
+  const raw = command.trim();
+
+  // POSIX destructive command patterns checked across full command string:
+  // 1. Fork bomb: :(){ :|:& };:
+  if (raw.includes(":(){ :|:& };:") || raw.includes(":(){:|:&};:") || raw.includes(":(){ :|:& };")) {
+    return true;
+  }
+  // 2. Recursive root/home deletion: rm -rf /, rm -fr /, rm -rf /*
+  if (
+    /\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+(\/|\/\*|~\/?|\$HOME)(\s|$|;|&|\|)/i.test(raw) ||
+    /\brm\s+--recursive\s+--force\s+(\/|\/\*|~\/?|\$HOME)(\s|$|;|&|\|)/i.test(raw)
+  ) {
+    return true;
+  }
+  // 3. Direct block device overwrites: dd if=..., > /dev/sd..., > /dev/nvme...
+  if (
+    /\bdd\s+if=/i.test(raw) ||
+    />\s*\/dev\/(sd[a-z]|nvme|hd[a-z]|null\s*;|zero)/i.test(raw)
+  ) {
+    return true;
+  }
+  // 4. Recursive root permission wipe: chmod -R 777 /
+  if (/\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?(777|000)\s+(\/|\/\*)(\s|$)/i.test(raw)) {
+    return true;
+  }
+
   const segments = splitChainedCommands(command);
   if (segments === null) {
     // Unclosed quote or unparseable command syntax - fail safe
@@ -439,6 +562,7 @@ function isDangerousCommand(command) {
   }
 
   const blockedNames = new Set([
+    // Windows blocked commands
     "del",
     "erase",
     "rmdir",
@@ -452,11 +576,39 @@ function isDangerousCommand(command) {
     "bcdedit",
     "takeown",
     "icacls",
+    // POSIX blocked commands
+    "reboot",
+    "poweroff",
+    "mkfs",
   ]);
 
   for (const rawSegment of segments) {
     const segment = rawSegment.trim();
     if (!segment) continue;
+
+    // POSIX destructive command patterns:
+    // 1. Recursive root/home deletion: rm -rf /, rm -fr /, rm -rf /*
+    if (
+      /\brm\s+(-[a-zA-Z]*[rf][a-zA-Z]*\s+)+(\/|\/\*|~\/?|\$HOME)(\s|$|;|&|\|)/i.test(segment) ||
+      /\brm\s+--recursive\s+--force\s+(\/|\/\*|~\/?|\$HOME)(\s|$|;|&|\|)/i.test(segment)
+    ) {
+      return true;
+    }
+    // 2. Direct block device overwrites: dd if=..., > /dev/sd..., > /dev/nvme...
+    if (
+      /\bdd\s+if=/i.test(segment) ||
+      />\s*\/dev\/(sd[a-z]|nvme|hd[a-z]|null\s*;|zero)/i.test(segment)
+    ) {
+      return true;
+    }
+    // 3. Fork bombs: :(){ :|:& };:
+    if (segment.includes(":(){ :|:& };:") || segment.includes(":(){ :|:& };")) {
+      return true;
+    }
+    // 4. Recursive root permission wipe: chmod -R 777 /
+    if (/\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?(777|000)\s+(\/|\/\*)(\s|$)/i.test(segment)) {
+      return true;
+    }
 
     // Strip leading parentheses or group wrappers: e.g. ((del foo))
     let clean = segment.replace(/^[\s()]+/, "");
@@ -502,9 +654,13 @@ function isDangerousCommand(command) {
     for (const token of [targetExe, slashTokens[0], slashTokens[slashTokens.length - 1]]) {
       const baseWithExt = token.split(/[\\]/).pop().toLowerCase();
       const baseName = baseWithExt.replace(/\.(exe|com|bat|cmd)$/i, "");
-      if (blockedNames.has(baseName)) {
+      if (blockedNames.has(baseName) || baseWithExt.startsWith("mkfs")) {
         return true;
       }
+    }
+
+    if (lower.startsWith("mkfs")) {
+      return true;
     }
 
     for (const name of blockedNames) {
@@ -526,18 +682,23 @@ function runCommand(command) {
   return new Promise((resolve) => {
     console.log("Running:", command);
 
-    const wrappedCommand = `"${command}"`;
+    const isWindows = process.platform === "win32";
+    const shellExe = isWindows ? "cmd.exe" : (fsSync.existsSync("/bin/bash") ? "/bin/bash" : "/bin/sh");
+    const shellArgs = isWindows ? ["/d", "/s", "/c", `"${command}"`] : ["-c", command];
+    const execOptions = {
+      cwd: WORKSPACE,
+      timeout: 30000,
+      maxBuffer: 1024 * 1024,
+      windowsHide: isWindows,
+    };
+    if (isWindows) {
+      execOptions.windowsVerbatimArguments = true;
+    }
 
     execFile(
-      "cmd.exe",
-      ["/d", "/s", "/c", wrappedCommand],
-      {
-        cwd: WORKSPACE,
-        timeout: 30000,
-        maxBuffer: 1024 * 1024,
-        windowsHide: true,
-        windowsVerbatimArguments: true,
-      },
+      shellExe,
+      shellArgs,
+      execOptions,
       (error, stdout, stderr) => {
         const output = [];
 
@@ -766,6 +927,85 @@ async function searchCode(query, isRegex = false, rootDir = WORKSPACE) {
   return results.join("\n");
 }
 
+// 5. Web Search Tool (`search_web`)
+function searchWeb(query) {
+  return new Promise((resolve) => {
+    if (!query || typeof query !== "string") {
+      resolve("Search query cannot be empty.");
+      return;
+    }
+    const https = require("https");
+    const encoded = encodeURIComponent(query);
+    const req = https.get(
+      `https://html.duckduckgo.com/html/?q=${encoded}`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        },
+        timeout: 10000,
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          if (body.length < 100000) body += chunk;
+        });
+        res.on("end", () => {
+          const results = [];
+          const snippetRegex = /<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/gi;
+          let m;
+          while ((m = snippetRegex.exec(body)) !== null && results.length < 5) {
+            const clean = m[1]
+              .replace(/<[^>]+>/g, "")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, "&")
+              .replace(/&#x27;/g, "'")
+              .trim();
+            if (clean) results.push(clean);
+          }
+          if (results.length > 0) {
+            resolve(results.map((r, i) => `[Result ${i + 1}] ${r}`).join("\n\n"));
+          } else {
+            resolve(`Search completed for "${query}". No direct text snippets returned.`);
+          }
+        });
+      }
+    );
+    req.on("error", (err) => resolve(`Web search error: ${err.message}`));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve("Web search request timed out.");
+    });
+  });
+}
+
+// 6. Git Status and Git Diff Tools
+function getGitStatus() {
+  return new Promise((resolve) => {
+    execFile("git", ["status", "--short"], { cwd: WORKSPACE, timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) {
+        resolve(`Git status error: ${stderr || err.message}`);
+      } else {
+        resolve(stdout.trim() || "Working tree is clean.");
+      }
+    });
+  });
+}
+
+function getGitDiff(cached = false) {
+  return new Promise((resolve) => {
+    const args = ["diff"];
+    if (cached) args.push("--cached");
+    execFile("git", args, { cwd: WORKSPACE, timeout: 10000 }, (err, stdout, stderr) => {
+      if (err) {
+        resolve(`Git diff error: ${stderr || err.message}`);
+      } else {
+        resolve(stdout.trim() || "No git diff found (working tree clean).");
+      }
+    });
+  });
+}
+
 // 4. Session Persistence Management with Validation & Corruption Handling
 async function loadSessions() {
   try {
@@ -927,6 +1167,28 @@ async function executeTool(functionCall) {
       };
     }
 
+    if (functionCall.name === "search_web") {
+      const query = String(args.query || "").trim();
+      return {
+        success: true,
+        result: await searchWeb(query),
+      };
+    }
+
+    if (functionCall.name === "git_status") {
+      return {
+        success: true,
+        result: await getGitStatus(),
+      };
+    }
+
+    if (functionCall.name === "git_diff") {
+      return {
+        success: true,
+        result: await getGitDiff(Boolean(args.cached)),
+      };
+    }
+
     return {
       success: false,
       result: `Unknown tool: ${functionCall.name}`,
@@ -1054,40 +1316,40 @@ async function consumeInteractionStream(stream) {
 async function runAgent(
   userTask,
   previousInteractionId = null,
-  client = ai
+  client = null
 ) {
+  const activeClient = client || ai || getGenAIClient();
+  const isWin = process.platform === "win32";
   const instructions = `
 You are an autonomous coding agent.
 
 Current project workspace:
 ${WORKSPACE}
+Host Platform: ${process.platform} (${isWin ? "Windows" : "Linux/POSIX"})
+Autonomous Mode: ${AUTO_APPROVE ? "ACTIVE (Operations auto-approved without prompts)" : "Interactive Approval Required"}
 
 Complete the user's task instead of merely explaining it.
 
 Available tools:
 - list_files
 - read_file
-- write_file (requires user approval gate)
-- edit_file (incrementally replace unambiguous text block; requires user approval gate)
-- run_command (requires user approval gate)
-- run_executable (authorized Python interpreter: ${ALLOWED_PYTHON})
+- write_file (requires approval or autonomous mode)
+- edit_file (incrementally replace unambiguous text block)
+- run_command (cross-platform shell commands)
+- run_executable (authorized Python interpreter: ${ALLOWED_PYTHON || "python3"})
 - search_code (search codebase for literal text or regex)
+- search_web (search the web for documentation, APIs, and error solutions)
+- git_status (inspect workspace git status)
+- git_diff (view unstaged or staged git diff)
 
-IMPORTANT WINDOWS RULES:
+ENVIRONMENT & PLATFORM RULES:
+You are running on ${isWin ? "Windows" : "Linux/POSIX"}.
+${isWin ? `For Python virtual environments, prefer:\n${ALLOWED_PYTHON || "python"}\nFor pip, prefer:\n${ALLOWED_PYTHON ? ALLOWED_PYTHON + " -m pip" : "python -m pip"}` : `Use bash / standard Linux utilities and python3 (${ALLOWED_PYTHON || "python3"}).`}
 
-You are running on Windows.
-
-For Python virtual environments, prefer:
-${ALLOWED_PYTHON}
-
-For pip, prefer:
-${ALLOWED_PYTHON} -m pip
-
-Avoid complicated nested quoting in Python commands.
-Prefer existing test files or Python scripts over python -c.
+Avoid complicated nested quoting in commands.
+Prefer existing test files or scripts over inline execution.
 
 WORKFLOW:
-
 1. Inspect relevant files.
 2. Read relevant code.
 3. Make the smallest necessary change.
@@ -1142,7 +1404,7 @@ Before claiming completion:
     }
 
     console.log("\n--- GEMINI (Streaming) ---");
-    const stream = await client.interactions.create(requestParams);
+    const stream = await activeClient.interactions.create(requestParams);
     interaction = await consumeInteractionStream(stream);
   } catch (apiError) {
     if (isAuthenticationError(apiError)) {
@@ -1161,7 +1423,7 @@ Before claiming completion:
         input: "Previous session expired or was invalid. " + input,
         stream: true,
       };
-      const freshStream = await client.interactions.create(freshParams);
+      const freshStream = await activeClient.interactions.create(freshParams);
       interaction = await consumeInteractionStream(freshStream);
     } else {
       throw apiError;
@@ -1239,7 +1501,7 @@ Before claiming completion:
 
     try {
       console.log("\n--- GEMINI (Streaming Tool Feedback) ---");
-      const stepStream = await client.interactions.create({
+      const stepStream = await activeClient.interactions.create({
         model: MODEL,
         previous_interaction_id: interaction.id,
         tools,
@@ -1258,7 +1520,7 @@ Before claiming completion:
 
       if (isStepInteractionExpired) {
         console.error("\n[WARNING] Step interaction creation failed (interaction ID expired). Restarting fresh session...");
-        const freshStepStream = await client.interactions.create({
+        const freshStepStream = await activeClient.interactions.create({
           model: MODEL,
           tools,
           input: "Previous step interaction expired. " + JSON.stringify(functionResults),
@@ -1282,10 +1544,12 @@ Before claiming completion:
 async function main() {
   console.log("========================================");
   console.log("       GEMINI CODING AGENT");
-  console.log("       PHASE B STREAMING MODE");
+  console.log("       CROSS-PLATFORM STREAMING MODE");
   console.log("========================================");
   console.log("Project:", WORKSPACE);
+  console.log("Platform:", process.platform);
   console.log("Model:", MODEL);
+  console.log("Autonomous Mode:", AUTO_APPROVE ? "ENABLED (auto-approves permissions)" : "DISABLED (prompts for approvals)");
   console.log("Python Interpreter:", ALLOWED_PYTHON || "None detected");
 
   const sessions = await loadSessions();
@@ -1353,4 +1617,17 @@ if (require.main === module) {
   });
 }
 
-module.exports = { runAgent, isAuthenticationError, consumeInteractionStream, runCommand, isDangerousCommand, searchCode, editFile, isProtectedFile };
+module.exports = {
+  runAgent,
+  isAuthenticationError,
+  consumeInteractionStream,
+  runCommand,
+  isDangerousCommand,
+  searchCode,
+  editFile,
+  isProtectedFile,
+  searchWeb,
+  getGitStatus,
+  getGitDiff,
+  AUTO_APPROVE,
+};
