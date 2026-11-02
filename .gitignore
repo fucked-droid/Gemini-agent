@@ -1,0 +1,16 @@
+# Environment and secrets
+.env
+
+# Dependencies
+node_modules/
+
+# Sub-repositories
+Daily-Market-Regime-Engine/
+
+# Agent session history
+.gemini_sessions.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class

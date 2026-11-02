@@ -1,0 +1,18 @@
+{
+  "name": "gemini-agent",
+  "version": "1.0.0",
+  "description": "Autonomous Gemini Coding Agent with security sandboxing, streaming, and tool execution.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test phase_a.test.js phase_b.test.js search_code.test.js edit_file.test.js",
+    "test:calculator": "node calculator.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.27.0",
+    "dotenv": "^18.0.9"
+  }
+}
