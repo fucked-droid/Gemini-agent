@@ -2,7 +2,7 @@
 
 A robust, autonomous coding assistant built with Node.js and the official Google Gen AI SDK (`@google/genai`), powered by `gemini-3.5-flash-lite` via the Google GenAI Interactions API (`ai.interactions.create`).
 
-The agent features progressive token streaming, multi-turn conversational memory with persistent session storage, automated self-repair execution loops, and strict security sandboxing.
+The agent features progressive token streaming, multi-turn conversational memory with persistent session storage, automated self-repair execution loops, cross-platform terminal execution, and strict security sandboxing.
 
 ---
 
@@ -12,7 +12,8 @@ The agent features progressive token streaming, multi-turn conversational memory
 - **Conversational Memory:** Preserves multi-turn state via `previous_interaction_id` chaining across turns.
 - **Session Persistence:** Saves session metadata to `.gemini_sessions.json`, allowing sessions to be listed and resumed across restarts.
 - **Autonomous Workflow & Auto-Repair Loop:** Executes autonomous multi-step tasks (up to 20 steps) with an automated repair counter (`MAX_REPAIR_ATTEMPTS = 5`) that captures diagnostic outputs and refines subsequent commands.
-- **Security Sandboxing:** Enforces workspace boundary containment, protected secrets isolation, dangerous command blacklisting, and explicit executable whitelisting.
+- **Cross-Platform Compatibility:** Runs on both Windows (`cmd.exe`) and Linux/macOS (`bash` / `sh`) with platform-aware path resolution and shell invocation.
+- **Security Sandboxing:** Enforces workspace boundary containment, protected secrets isolation, dangerous command blacklisting (both POSIX and Windows), and authorized executable verification.
 
 ---
 
@@ -21,13 +22,13 @@ The agent features progressive token streaming, multi-turn conversational memory
 The agent exposes 10 specialized developer tools:
 
 1. **`list_files`**  
-   Enumerates files and directories within the project workspace.
+   Enumerates files and directories within the project workspace or any specified subdirectory (`path`), with optional `recursive` traversal and directory indicator formatting.
 
 2. **`read_file`**  
-   Reads text files inside the project workspace with strict path traversal validation.
+   Reads text files inside the project workspace with path traversal validation and optional line-range pagination (`startLine`, `endLine`) for inspectable token-safe viewing.
 
 3. **`write_file`**  
-   Creates or completely replaces a file in the workspace. Protected by safety validation and approval gate.
+   Creates or completely replaces a file in the workspace with automatic recursive parent directory creation (`fs.mkdir({ recursive: true })`). Protected by safety validation and approval gate.
 
 4. **`edit_file`** (Incremental Editing Tool)  
    Performs targeted, unambiguous text replacements in existing files:
@@ -38,7 +39,7 @@ The agent exposes 10 specialized developer tools:
    - Also accepts tool alias `replace_block`.
 
 5. **`run_command`**  
-   Executes cross-platform shell commands (`bash` on Linux/macOS, `cmd.exe` on Windows) with strict command blacklisting.
+   Executes cross-platform shell commands (`bash` on Linux/macOS, `cmd.exe` on Windows) with strict command blacklisting and chained-command syntax defense.
 
 6. **`run_executable`**  
    Executes explicitly whitelisted executables (e.g., Python virtual environment binaries or system `python3`) using direct `child_process.execFile` argument arrays.
@@ -50,13 +51,13 @@ The agent exposes 10 specialized developer tools:
    - Skips binary file extensions (`.png`, `.jpg`, `.pdf`, `.zip`, `.exe`, etc.).
 
 8. **`search_web`**  
-   Searches the web for up-to-date documentation, API changes, and solutions to cryptic runtime errors.
+   Searches the web for up-to-date documentation, API changes, and solutions to cryptic runtime errors with automatic redirect following and DuckDuckGo Lite fallback.
 
 9. **`git_status`**  
    Inspects working tree status and uncommitted modified/untracked files.
 
 10. **`git_diff`**  
-   Inspects granular line-by-line diffs of uncommitted changes.
+   Inspects granular line-by-line diffs of uncommitted changes (both staged and unstaged).
 
 ---
 
@@ -73,16 +74,20 @@ The agent implements four layers of local development security:
    - Session data stores: `.gemini_sessions.json`, `.gemini_sessions*.json`
 
 3. **Command Blacklist & Obfuscation Filter (`isDangerousCommand`):**  
-   Blocks destructive commands, including:
-   - File deletion and directory removal: `del`, `rmdir`, `rd`, `erase`
-   - Disk operations: `format`, `diskpart`
-   - System disruption: `shutdown`, `taskkill`
-   - Registry modification: `reg delete`, `reg add`
-   - Remote download cradles: `Invoke-WebRequest`, `DownloadFile`, `curl`, `wget`
+   Blocks destructive commands across Windows and POSIX:
+   - File deletion and directory removal: `del`, `rmdir`, `rd`, `erase`, `rm -rf /`, `rm -fr /*`
+   - Disk operations: `format`, `diskpart`, `mkfs`, `dd if=/dev/...`
+   - System disruption: `shutdown`, `taskkill`, `reboot`, `poweroff`, fork bombs (`:(){ :|:& };:`)
+   - Registry & permission modification: `reg delete`, `reg add`, `chmod -R 777 /`
    - Shell obfuscation attacks: Caret-escaped tokens (`^d^e^l`), executable extensions (`format.com`, `shutdown.exe`), and absolute path invocations (`C:\Windows\System32\del`).
 
-4. **Authorized Python Whitelist (`ALLOWED_PYTHON`):**  
-   Discovers and restricts Python execution to verified virtual environment interpreters (`.venv/Scripts/python.exe` or candidate paths), preventing untrusted system Python execution.
+4. **Authorized Python Discovery (`discoverPythonInterpreter`):**  
+   Dynamically identifies authorized Python interpreters via:
+   - `PYTHON_PATH` environment variable
+   - `VIRTUAL_ENV` active environment
+   - Subproject virtual environments (`Daily-Market-Regime-Engine/.venv`, `venv`)
+   - Workspace virtual environments (`.venv`, `venv`)
+   - System Python fallbacks (`python3`, `python`)
 
 ---
 
@@ -139,17 +144,22 @@ While running in interactive mode, you can enter tasks or use the following comm
 
 ## Test Execution
 
-The project utilizes Node.js built-in test runner (`node --test`).
+The project provides comprehensive unit and capability test suites.
 
-### Run All Verified Test Suites
+### Run Comprehensive Test Suite
 ```bash
 npm test
 ```
-*Executes 28 verified tests across 4 test suites:*
-- `phase_a.test.js`: Calculator verification, path traversal checks, session persistence, and command blacklist defenses.
-- `phase_b.test.js`: Progressive token streaming, interaction delta accumulation, and tool-call step ordering.
-- `search_code.test.js`: Code search recursion limits, 100-match cap, regex patterns, and exclusion filters.
-- `edit_file.test.js`: Incremental file editing, unambiguous matching, missing/duplicate match rejection, CRLF preservation, and secret file protection.
+*Executes the full cross-platform and capability suite (`cross_platform.test.js`), verifying:*
+1. Dangerous command defense (Windows & POSIX)
+2. Cross-platform shell command execution
+3. Protected secret/session file shielding
+4. Git status & diff introspection
+5. Incremental block editing
+6. Parent directory auto-creation on file write
+7. Subdirectory and recursive file listing
+8. Paginated line-range file reading
+9. Python interpreter discovery resilience
 
 ### Run Calculator Unit Test
 ```bash
@@ -165,7 +175,7 @@ The workspace currently contains core agent files, test suites, historical miles
 | Component Group | Files | Description |
 | :--- | :--- | :--- |
 | **Agent Core & Config** | `index.js`, `package.json`, `package-lock.json`, `.gitignore`, `README.md` | Primary application runtime, dependency configurations, and documentation. |
-| **Verified Test Suites** | `phase_a.test.js`, `phase_b.test.js`, `search_code.test.js`, `edit_file.test.js`, `calculator.test.js`, `broken.test.js`, `repair-demo.test.js`, `auth_test.js` | Official automated regression test suites verifying agent capabilities. |
+| **Verified Test Suites** | `cross_platform.test.js`, `phase_a.test.js`, `phase_b.test.js`, `search_code.test.js`, `edit_file.test.js`, `calculator.test.js`, `broken.test.js`, `repair-demo.test.js`, `auth_test.js` | Official automated regression test suites verifying agent capabilities. |
 | **Agent Test Fixtures** | `calculator.js`, `broken.js`, `repair-demo.js`, `math.js`, `app.js` | Fixture modules used by the agent during self-repair and tool verification loops. |
 | **Documentation & Reference** | `GEMINI_AGENT_AUDIT.md`, `phase_b_sdk_types.txt` | Complete technical audit report and GenAI SDK interaction typing reference. |
 | **Historical Snapshots** | `index-backup.js`, `index-step20.js`, `test.txt` | Milestone backups and test text outputs preserved for historical reference. |
