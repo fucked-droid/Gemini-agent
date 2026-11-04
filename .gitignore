@@ -14,3 +14,7 @@ Daily-Market-Regime-Engine/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Scraped data & temporary output
+headlines.json
+

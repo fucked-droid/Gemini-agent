@@ -1,6 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { runAgent, isAuthenticationError } = require("./index.js");
+const {
+  runAgent,
+  isAuthenticationError,
+  validateApiKey,
+  isPlaceholderApiKey,
+  extractApiErrorMessage,
+} = require("./index.js");
 
 test("Authentication error classification", () => {
   assert.strictEqual(isAuthenticationError({ status: 400, message: "API_KEY_INVALID" }), true);
@@ -9,6 +15,72 @@ test("Authentication error classification", () => {
   assert.strictEqual(isAuthenticationError({ message: "API key not valid. Please pass a valid API key." }), true);
   assert.strictEqual(isAuthenticationError({ status: 500, message: "Internal Server Error" }), false);
   assert.strictEqual(isAuthenticationError({ status: 429, message: "Rate limit exceeded" }), false);
+
+  // Speakeasy / GoogleGenAI 400 BadRequestError with hidden message in body
+  assert.strictEqual(
+    isAuthenticationError({
+      status: 400,
+      message: '400 API error occurred: {"httpMeta":{"response":{},"request":{}}}',
+      body: JSON.stringify({
+        error: {
+          code: 400,
+          message: "API key not valid. Please pass a valid API key.",
+          status: "INVALID_ARGUMENT",
+        },
+      }),
+    }),
+    true
+  );
+
+  // Speakeasy / GoogleGenAI 400 BadRequestError with placeholder key
+  const prevKey = process.env.GEMINI_API_KEY;
+  try {
+    process.env.GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
+    assert.strictEqual(
+      isAuthenticationError({
+        status: 400,
+        message: '400 API error occurred: {"httpMeta":{"response":{},"request":{}}}',
+      }),
+      true
+    );
+  } finally {
+    process.env.GEMINI_API_KEY = prevKey;
+  }
+});
+
+test("API key validation and placeholder detection", () => {
+  assert.strictEqual(isPlaceholderApiKey("YOUR_GEMINI_API_KEY"), true);
+  assert.strictEqual(isPlaceholderApiKey("YOUR_API_KEY"), true);
+  assert.strictEqual(isPlaceholderApiKey("<YOUR_API_KEY>"), true);
+  assert.strictEqual(isPlaceholderApiKey(""), true);
+  assert.strictEqual(isPlaceholderApiKey(null), true);
+  assert.strictEqual(isPlaceholderApiKey("AIzaSyD-valid-mock-key-1234567890"), false);
+
+  assert.strictEqual(validateApiKey("").valid, false);
+  assert.strictEqual(validateApiKey("   ").valid, false);
+  assert.strictEqual(validateApiKey("YOUR_GEMINI_API_KEY").valid, false);
+  assert.strictEqual(validateApiKey("AIzaSyD-valid-mock-key-1234567890").valid, true);
+});
+
+test("extractApiErrorMessage extracts nested Google error details", () => {
+  const sdkError = {
+    status: 400,
+    message: '400 API error occurred: {"httpMeta":{"response":{},"request":{}}}',
+    body: JSON.stringify({
+      error: {
+        code: 400,
+        message: "API key not valid. Please pass a valid API key.",
+        status: "INVALID_ARGUMENT",
+      },
+    }),
+  };
+  assert.strictEqual(extractApiErrorMessage(sdkError), "API key not valid. Please pass a valid API key.");
+
+  const emptyMetaError = {
+    status: 400,
+    message: '400 API error occurred: {"httpMeta":{"response":{},"request":{}}}',
+  };
+  assert.ok(extractApiErrorMessage(emptyMetaError).includes("rejected the request payload"));
 });
 
 test("Invalid API key does not trigger interaction recovery and throws immediately", async () => {

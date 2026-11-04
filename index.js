@@ -1,6 +1,6 @@
 // Safe environment loader (tries dotenv, falls back to zero-dependency native parser)
 try {
-  require("dotenv").config();
+  require("dotenv").config({ override: true });
 } catch (_) {
   // Built-in .env parser fallback
   const fsSync = require("fs");
@@ -10,12 +10,14 @@ try {
       const lines = fsSync.readFileSync(envPath, "utf8").split(/\r?\n/);
       for (const line of lines) {
         const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
-        if (match && !process.env[match[1]]) {
+        if (match) {
           let val = (match[2] || "").trim();
           if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
             val = val.slice(1, -1);
           }
-          process.env[match[1]] = val;
+          if (val) {
+            process.env[match[1]] = val;
+          }
         }
       }
     } catch (_) {}
@@ -45,20 +47,64 @@ const AUTO_APPROVE =
 
 const WORKSPACE = path.resolve(process.cwd());
 const SESSION_FILE = path.join(WORKSPACE, ".gemini_sessions.json");
-const MODEL = "gemini-3.5-flash-lite";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const MAX_STEPS = 20;
 const MAX_REPAIR_ATTEMPTS = 5;
+
+const PLACEHOLDER_API_KEYS = new Set([
+  "YOUR_GEMINI_API_KEY",
+  "YOUR_API_KEY",
+  "YOUR_KEY_HERE",
+  "YOUR_API_KEY_HERE",
+  "GEMINI_API_KEY",
+  "TODO",
+  "PLACEHOLDER",
+  "CHANGE_ME",
+  "INSERT_KEY_HERE",
+  "<YOUR_API_KEY>",
+  "<GEMINI_API_KEY>",
+]);
+
+function isPlaceholderApiKey(key) {
+  if (!key || typeof key !== "string") return true;
+  const trimmed = key.trim();
+  if (!trimmed) return true;
+  const upper = trimmed.toUpperCase();
+  if (PLACEHOLDER_API_KEYS.has(upper)) return true;
+  if (upper.startsWith("YOUR_") || upper.startsWith("MY_") || upper.startsWith("<") || upper.endsWith(">")) return true;
+  return false;
+}
+
+function validateApiKey(key) {
+  if (!key || !key.trim()) {
+    return {
+      valid: false,
+      reason: "MISSING",
+      message: "[FATAL ERROR] GEMINI_API_KEY environment variable is missing or empty. Please set a valid Gemini API key in your .env file or environment variables.",
+    };
+  }
+  const trimmed = key.trim();
+  if (isPlaceholderApiKey(trimmed)) {
+    return {
+      valid: false,
+      reason: "PLACEHOLDER",
+      message: `[FATAL ERROR] GEMINI_API_KEY is currently set to placeholder value "${trimmed}". You must replace this with a valid Gemini API key from https://aistudio.google.com/ in your .env file or environment variables.`,
+    };
+  }
+  return { valid: true, apiKey: trimmed };
+}
 
 // Lazy GenAI client factory to allow importing functions without requiring immediate API key
 function getGenAIClient() {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error("[FATAL ERROR] GEMINI_API_KEY environment variable is missing or empty.");
+  const validation = validateApiKey(apiKey);
+  if (!validation.valid) {
+    throw new Error(validation.message);
   }
   if (!GoogleGenAI) {
     ({ GoogleGenAI } = require("@google/genai"));
   }
-  return new GoogleGenAI({ apiKey: apiKey.trim() });
+  return new GoogleGenAI({ apiKey: validation.apiKey });
 }
 
 let ai = null;
@@ -68,19 +114,92 @@ try {
   }
 } catch (_) {}
 
+// Extracts detailed error message from SDK API error payloads
+function extractApiErrorMessage(err) {
+  if (!err) return "Unknown error";
+
+  // Try extracting from body if it's a string
+  if (typeof err.body === "string" && err.body.trim()) {
+    try {
+      const parsed = JSON.parse(err.body);
+      if (parsed.error && parsed.error.message) {
+        return parsed.error.message;
+      }
+    } catch (_) {
+      if (err.body.length < 500) return err.body;
+    }
+  }
+
+  // Try extracting from error object
+  if (err.error) {
+    if (typeof err.error === "object" && err.error.message) {
+      return err.error.message;
+    }
+    if (typeof err.error === "string") {
+      return err.error;
+    }
+  }
+
+  // Try extracting from cause
+  if (err.cause) {
+    if (typeof err.cause.body === "string" && err.cause.body.trim()) {
+      try {
+        const parsed = JSON.parse(err.cause.body);
+        if (parsed.error && parsed.error.message) {
+          return parsed.error.message;
+        }
+      } catch (_) {}
+    }
+    if (err.cause.message && !err.cause.message.includes("httpMeta")) {
+      return err.cause.message;
+    }
+  }
+
+  const msg = String(err.message || err.toString() || "");
+  if (msg.includes("httpMeta")) {
+    return "API error 400 Bad Request: The Gemini API rejected the request payload (invalid/placeholder API key, unsupported model, or malformed parameters).";
+  }
+  return msg;
+}
+
 // Helper to check if an error is an authentication error (400 API_KEY_INVALID, 401, 403, or status/message matching auth failures)
 function isAuthenticationError(err) {
   if (!err) return false;
   const status = err.status || err.statusCode || (err.response && err.response.status);
-  const message = String(err.message || err.toString()).toUpperCase();
+  const message = String(err.message || err.toString() || "").toUpperCase();
+  const bodyText = (
+    (typeof err.body === "string" ? err.body : JSON.stringify(err.body || "")) + " " +
+    (err.cause && typeof err.cause.body === "string" ? err.cause.body : "") + " " +
+    (err.cause && err.cause.message ? err.cause.message : "") + " " +
+    (typeof err.error === "string" ? err.error : JSON.stringify(err.error || ""))
+  ).toUpperCase();
+  const allText = `${message} ${bodyText}`;
   
   if (status === 401 || status === 403) {
     return true;
   }
-  if (status === 400 && (message.includes("API_KEY_INVALID") || (message.includes("INVALID_ARGUMENT") && message.includes("API KEY")))) {
-    return true;
+  if (status === 400) {
+    if (
+      allText.includes("API_KEY_INVALID") ||
+      allText.includes("API KEY NOT VALID") ||
+      (allText.includes("INVALID_ARGUMENT") && allText.includes("API KEY")) ||
+      allText.includes("CREDENTIAL") ||
+      allText.includes("AUTHENTICATION") ||
+      allText.includes("UNAUTHENTICATED")
+    ) {
+      return true;
+    }
+    // Handle Speakeasy/GoogleGenAI BadRequestError masking 400 when API key is a placeholder or invalid
+    if (message.includes("HTTPMETA") && isPlaceholderApiKey(process.env.GEMINI_API_KEY)) {
+      return true;
+    }
   }
-  if (message.includes("API_KEY_INVALID") || message.includes("API KEY NOT VALID") || message.includes("AUTHENTICATION") || message.includes("UNAUTHENTICATED")) {
+  if (
+    allText.includes("API_KEY_INVALID") ||
+    allText.includes("API KEY NOT VALID") ||
+    allText.includes("AUTHENTICATION") ||
+    allText.includes("UNAUTHENTICATED")
+  ) {
     return true;
   }
   return false;
@@ -333,7 +452,7 @@ async function listFiles(targetSubPath = "", recursive = false) {
     throw new Error(`Path is not a directory: ${targetSubPath}`);
   }
 
-  const excludedDirs = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build"]);
+  const excludedDirs = new Set([".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".agents"]);
 
   if (recursive) {
     const results = [];
@@ -345,6 +464,7 @@ async function listFiles(targetSubPath = "", recursive = false) {
       } catch (_) {
         return;
       }
+      const subdirs = [];
       for (const entry of entries) {
         if (results.length >= 500) break;
         const full = path.join(currentDir, entry.name);
@@ -352,11 +472,15 @@ async function listFiles(targetSubPath = "", recursive = false) {
         if (entry.isDirectory()) {
           if (!excludedDirs.has(entry.name)) {
             results.push(`${rel}/`);
-            await walk(full);
+            subdirs.push(full);
           }
         } else {
           results.push(rel);
         }
+      }
+      for (const subdir of subdirs) {
+        if (results.length >= 500) break;
+        await walk(subdir);
       }
     }
     await walk(targetDir);
@@ -1539,6 +1663,10 @@ Before claiming completion:
   } catch (apiError) {
     if (isAuthenticationError(apiError)) {
       console.error("\n[AUTHENTICATION ERROR] HTTP 400 API_KEY_INVALID / Authentication failed. Please verify your GEMINI_API_KEY environment variable.");
+      const detailed = extractApiErrorMessage(apiError);
+      if (detailed && !detailed.includes("httpMeta")) {
+        console.error("Server message:", detailed);
+      }
       throw apiError;
     }
 
@@ -1642,6 +1770,10 @@ Before claiming completion:
     } catch (stepApiError) {
       if (isAuthenticationError(stepApiError)) {
         console.error("\n[AUTHENTICATION ERROR] HTTP 400 API_KEY_INVALID / Authentication failed during step interaction.");
+        const detailed = extractApiErrorMessage(stepApiError);
+        if (detailed && !detailed.includes("httpMeta")) {
+          console.error("Server message:", detailed);
+        }
         throw stepApiError;
       }
 
@@ -1681,6 +1813,11 @@ async function main() {
   console.log("Model:", MODEL);
   console.log("Autonomous Mode:", AUTO_APPROVE ? "ENABLED (auto-approves permissions)" : "DISABLED (prompts for approvals)");
   console.log("Python Interpreter:", ALLOWED_PYTHON || "None detected");
+
+  const keyValidation = validateApiKey(process.env.GEMINI_API_KEY);
+  if (!keyValidation.valid) {
+    console.warn("\n[CONFIGURATION WARNING]", keyValidation.message);
+  }
 
   const sessions = await loadSessions();
   const sessionIds = Object.keys(sessions);
@@ -1734,8 +1871,20 @@ async function main() {
         interactionId
       );
     } catch (error) {
-      console.error("\nERROR:");
-      console.error(error);
+      console.error("\nERROR:", error.name || "Error");
+      const detailedMsg = extractApiErrorMessage(error);
+      console.error("Details:", detailedMsg);
+
+      if (isAuthenticationError(error)) {
+        console.error("\n[DIAGNOSIS] This error is caused by an invalid or unconfigured GEMINI_API_KEY.");
+        console.error("1. Get a free Gemini API key at: https://aistudio.google.com/");
+        console.error("2. Add it to your .env file: GEMINI_API_KEY=AIzaSy...");
+        console.error("3. Or set it in your environment: setx GEMINI_API_KEY \"AIzaSy...\"");
+      } else if (String(error.message || "").includes("httpMeta")) {
+        console.error("\n[DIAGNOSIS] The Google GenAI Interactions API rejected the request.");
+        console.error("Please verify your GEMINI_API_KEY and check that model '" + MODEL + "' is supported.");
+        console.error("You can also override the model by setting GEMINI_MODEL (e.g. GEMINI_MODEL=gemini-2.5-flash).");
+      }
     }
   }
 }
@@ -1750,6 +1899,9 @@ if (require.main === module) {
 module.exports = {
   runAgent,
   isAuthenticationError,
+  validateApiKey,
+  isPlaceholderApiKey,
+  extractApiErrorMessage,
   consumeInteractionStream,
   runCommand,
   isDangerousCommand,

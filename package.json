@@ -6,7 +6,10 @@
   "scripts": {
     "test": "node cross_platform.test.js",
     "test:v18": "node --test phase_a.test.js phase_b.test.js search_code.test.js edit_file.test.js",
-    "test:calculator": "node calculator.test.js"
+    "test:calculator": "node calculator.test.js",
+    "scan:nifty": "python Daily-Market-Regime-Engine/scan_nifty.py",
+    "scan:nifty:update": "python Daily-Market-Regime-Engine/scan_nifty.py --update --news",
+    "scan:live": "python Daily-Market-Regime-Engine/scan_nifty.py --live"
   },
   "keywords": [],
   "author": "",
