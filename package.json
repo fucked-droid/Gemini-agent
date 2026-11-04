@@ -9,7 +9,9 @@
     "test:calculator": "node calculator.test.js",
     "scan:nifty": "python Daily-Market-Regime-Engine/scan_nifty.py",
     "scan:nifty:update": "python Daily-Market-Regime-Engine/scan_nifty.py --update --news",
-    "scan:live": "python Daily-Market-Regime-Engine/scan_nifty.py --live"
+    "scan:live": "python Daily-Market-Regime-Engine/scan_nifty.py --live",
+    "scan:chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart",
+    "chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart"
   },
   "keywords": [],
   "author": "",
