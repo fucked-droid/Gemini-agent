@@ -146,7 +146,11 @@
     "allow": [
       "read_file(C:/projects/gemini-agent/.agents/gsd-core)",
       "read_file(C:/projects/gemini-agent/.agents/skills)",
-      "command(node C:/projects/gemini-agent/.agents/hooks)"
+      "command(node C:/projects/gemini-agent/.agents/hooks)",
+      "read_file(C:/Projects/gemini-agent/.agents/gsd-core/*)",
+      "read_file(C:/Projects/gemini-agent/.agents/agents/gsd-*)",
+      "read_file(C:/Projects/gemini-agent/.agents/skills/gsd-*)",
+      "command(node C:/Projects/gemini-agent/.agents/hooks/*)"
     ]
   }
 }

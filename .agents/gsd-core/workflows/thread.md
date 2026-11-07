@@ -148,9 +148,9 @@ If $ARGUMENTS is a new description (no matching thread file):
 
 1. Generate slug from description:
    ```bash
-IFS= read -rd '' GSD_ARGS <<'GSD_ARGS_END_fb2b0d12b2a17454bd6966fc10bdeed6' || true
+IFS= read -rd '' GSD_ARGS <<'GSD_ARGS_END_6e30ebb7f6ce648893bdc77c02447f58' || true
 $ARGUMENTS
-GSD_ARGS_END_fb2b0d12b2a17454bd6966fc10bdeed6
+GSD_ARGS_END_6e30ebb7f6ce648893bdc77c02447f58
 GSD_ARGS=${GSD_ARGS%$'\n'}
    SLUG=$(gsd_run query generate-slug "$GSD_ARGS" --raw)
    ```
@@ -196,9 +196,9 @@ updated: {today ISO date}
 
 5. Commit:
    ```bash
-IFS= read -rd '' GSD_ARGS <<'GSD_ARGS_END_fb2b0d12b2a17454bd6966fc10bdeed6' || true
+IFS= read -rd '' GSD_ARGS <<'GSD_ARGS_END_6e30ebb7f6ce648893bdc77c02447f58' || true
 $ARGUMENTS
-GSD_ARGS_END_fb2b0d12b2a17454bd6966fc10bdeed6
+GSD_ARGS_END_6e30ebb7f6ce648893bdc77c02447f58
 GSD_ARGS=${GSD_ARGS%$'\n'}
    gsd_run query commit "docs: create thread — ${GSD_ARGS}" --files ".planning/threads/${SLUG}.md"
    ```
