@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "company_name": "Vedant Poly Fabs Limited",
+    "symbol": "VEDANTPOLY",
+    "sector": "Textiles & Packaging Polymers",
+    "category": "SME_NSE",
+    "issue_price": 94.0,
+    "price_band_low": 88.0,
+    "price_band_high": 94.0,
+    "lot_size": 1200,
+    "issue_size_crores": 56.68,
+    "open_date": "2026-11-02",
+    "close_date": "2026-11-04",
+    "listing_date": "2026-11-09"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 1.0,
+    "gmp_trend": "FALLING",
+    "qib_subscription_times": 1.8,
+    "nii_subscription_times": 2.4,
+    "retail_subscription_times": 3.1,
+    "total_subscription_times": 2.55,
+    "anchor_quality": "AVERAGE",
+    "kostak_rate_inr": 150.0,
+    "subject_to_sauda_inr": 1000.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 62.0,
+      "ebitda_crores": 5.8,
+      "pat_crores": 2.8,
+      "net_worth_crores": 18.0,
+      "total_debt_crores": 14.5,
+      "cfo_crores": 2.1,
+      "roce_pct": 14.2,
+      "ronw_pct": 15.5
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 75.0,
+      "ebitda_crores": 7.2,
+      "pat_crores": 3.6,
+      "net_worth_crores": 22.0,
+      "total_debt_crores": 16.2,
+      "cfo_crores": 2.8,
+      "roce_pct": 15.6,
+      "ronw_pct": 16.3
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 88.0,
+      "ebitda_crores": 8.5,
+      "pat_crores": 4.4,
+      "net_worth_crores": 27.0,
+      "total_debt_crores": 18.0,
+      "cfo_crores": 3.2,
+      "roce_pct": 16.5,
+      "ronw_pct": 16.3
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 56.68,
+    "ofs_crores": 0.0,
+    "promoter_pre_holding_pct": 98.0,
+    "promoter_post_holding_pct": 72.4,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Funding capital expenditure for setting up a new manufacturing plant",
+      "Working capital requirements",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Emmbi Industries Ltd",
+        "pe_ratio": 16.2,
+        "pb_ratio": 1.2,
+        "roe_pct": 8.0,
+        "ev_ebitda": 7.5
+      },
+      {
+        "name": "Commercial Syn Bags",
+        "pe_ratio": 19.5,
+        "pb_ratio": 2.1,
+        "roe_pct": 11.2,
+        "ev_ebitda": 9.0
+      }
+    ],
+    "industry_pe_median": 17.85,
+    "industry_pb_median": 1.65
+  },
+  "governance": {
+    "pending_litigations_crores": 0.8,
+    "contingent_liabilities_crores": 1.2,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  },
+  "sme_metrics": {
+    "is_sme": true,
+    "top_3_clients_revenue_pct": 52.0,
+    "top_5_clients_revenue_pct": 68.0,
+    "debtor_days": 85.0,
+    "working_capital_days": 110.0,
+    "single_facility_risk": false,
+    "market_maker_spread_pct": 2.0
+  }
+}

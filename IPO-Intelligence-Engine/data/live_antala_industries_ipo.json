@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "company_name": "Antala Industries Limited",
+    "symbol": "ANTALA",
+    "sector": "Industrial Machinery & Casting Components",
+    "category": "SME_BSE",
+    "issue_price": 66.0,
+    "price_band_low": 62.0,
+    "price_band_high": 66.0,
+    "lot_size": 2000,
+    "issue_size_crores": 22.98,
+    "open_date": "2026-10-29",
+    "close_date": "2026-11-05",
+    "listing_date": "2026-11-11"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 4.5,
+    "gmp_trend": "STABLE",
+    "qib_subscription_times": 10.5,
+    "nii_subscription_times": 14.8,
+    "retail_subscription_times": 12.2,
+    "total_subscription_times": 12.79,
+    "anchor_quality": "AVERAGE",
+    "kostak_rate_inr": 350.0,
+    "subject_to_sauda_inr": 6500.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 18.5,
+      "ebitda_crores": 2.4,
+      "pat_crores": 1.2,
+      "net_worth_crores": 6.8,
+      "total_debt_crores": 3.2,
+      "cfo_crores": 1.1,
+      "roce_pct": 16.5,
+      "ronw_pct": 17.6
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 25.2,
+      "ebitda_crores": 3.6,
+      "pat_crores": 1.9,
+      "net_worth_crores": 9.2,
+      "total_debt_crores": 3.8,
+      "cfo_crores": 1.8,
+      "roce_pct": 18.2,
+      "ronw_pct": 20.6
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 34.0,
+      "ebitda_crores": 5.1,
+      "pat_crores": 2.8,
+      "net_worth_crores": 13.5,
+      "total_debt_crores": 4.1,
+      "cfo_crores": 2.6,
+      "roce_pct": 20.4,
+      "ronw_pct": 20.7
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 22.98,
+    "ofs_crores": 0.0,
+    "promoter_pre_holding_pct": 95.5,
+    "promoter_post_holding_pct": 70.2,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Purchase of plant and machinery",
+      "Funding working capital requirements",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Universal Autofoundry Ltd",
+        "pe_ratio": 22.5,
+        "pb_ratio": 2.8,
+        "roe_pct": 14.5,
+        "ev_ebitda": 11.0
+      },
+      {
+        "name": "Carnation Industries",
+        "pe_ratio": 18.0,
+        "pb_ratio": 2.1,
+        "roe_pct": 12.0,
+        "ev_ebitda": 9.5
+      }
+    ],
+    "industry_pe_median": 20.25,
+    "industry_pb_median": 2.45
+  },
+  "governance": {
+    "pending_litigations_crores": 0.3,
+    "contingent_liabilities_crores": 0.5,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  },
+  "sme_metrics": {
+    "is_sme": true,
+    "top_3_clients_revenue_pct": 46.0,
+    "top_5_clients_revenue_pct": 62.0,
+    "debtor_days": 65.0,
+    "working_capital_days": 80.0,
+    "single_facility_risk": false,
+    "market_maker_spread_pct": 1.8
+  }
+}
