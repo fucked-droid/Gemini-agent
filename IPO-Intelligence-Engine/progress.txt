@@ -10,3 +10,8 @@
 [TASK 8 COMPLETED] Built src/report_generator.py with high-impact ANSI color terminal dashboards and src/telegram_bot.py with mobile-optimized alerts.
 [TASK 9 COMPLETED] Built cli.py and comprehensive unit test suite in tests/ (12/12 tests passing in 0.004s).
 [TASK 10 COMPLETED] Verified cross-platform compatibility and zero third-party dependencies (pure standard library for flawless Android Termux execution).
+[TASK 11 COMPLETED] Re-oriented entire system to Short-Term Listing Gain & Quick Exit Strategy (Apply -> Allotment -> 9:15 AM T+0 Sell):
+- Added ShortTermListingMetrics (GMP ₹, GMP %, GMP trend, QIB subscription rush, HNI demand, Kostak/Sauda).
+- Built src/analyzers/short_term_listing_analyzer.py with ListingExitPlaybook (pre-open, 9:15 AM bell sell, Upper Circuit trail, emergency cut-loss).
+- Updated scoring engine to 4-tier short-term verdicts (APPLY_LISTING_POP, APPLY_SPECULATIVE, AVOID_LOW_GAIN, AVOID_DISCOUNT_TRAP).
+- Updated report generator and telegram bot for profit/lot and exact exit rules. All 14 tests passing.

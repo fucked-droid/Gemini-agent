@@ -10,10 +10,10 @@ class ExchangeCategory(str, Enum):
 
 
 class VerdictTier(str, Enum):
-    STRONG_BUY = "LONG_TERM_COMPOUNDER"
-    BUY_ON_DIPS = "CONDITIONAL_BUY_ON_DIPS"
-    SPECULATIVE = "SPECULATIVE_HIGH_RISK"
-    AVOID_TRAP = "AVOID_PROMOTER_TRAP"
+    APPLY_LISTING_POP = "APPLY_FOR_LISTING_POP"          # Strong Listing Gain Expected (> 25-30%)
+    APPLY_SPECULATIVE = "APPLY_SPECULATIVE_FLIP"          # Moderate Listing Gain (12 - 25%)
+    AVOID_LOW_GAIN = "AVOID_LOW_LISTING_GAIN"             # Sub-par gain (< 10%), high opportunity cost
+    AVOID_DISCOUNT_TRAP = "AVOID_LISTING_DISCOUNT_TRAP"   # Negative/Flat GMP, risk of listing at discount
 
 
 @dataclass
@@ -34,7 +34,7 @@ class IPOMeta:
 
 @dataclass
 class FinancialYear:
-    year_label: str                 # e.g., "FY22", "FY23", "FY24"
+    year_label: str                 # e.g., "FY24", "FY25", "FY26"
     revenue_crores: float
     ebitda_crores: float
     pat_crores: float               # Profit After Tax
@@ -86,6 +86,19 @@ class PeerComparison:
 
 
 @dataclass
+class ShortTermListingMetrics:
+    gmp_inr: float = 0.0                          # Current Grey Market Premium in ₹
+    gmp_trend: str = "STABLE"                     # "RISING", "STABLE", "FALLING"
+    qib_subscription_times: float = 1.0           # QIB demand multiplier
+    nii_subscription_times: float = 1.0           # HNI/NII demand multiplier
+    retail_subscription_times: float = 1.0        # Retail subscription multiplier
+    total_subscription_times: float = 1.0         # Overall book subscription
+    anchor_quality: str = "AVERAGE"               # "TIER_1_MARQUEE", "AVERAGE", "WEAK"
+    kostak_rate_inr: float = 0.0                  # Kostak rate per application
+    subject_to_sauda_inr: float = 0.0             # Subject to Sauda rate
+
+
+@dataclass
 class SMERiskMetrics:
     is_sme: bool = False
     top_3_clients_revenue_pct: float = 0.0
@@ -112,6 +125,7 @@ class IPOProfile:
     issue_structure: IssueStructure
     peers: PeerComparison
     governance: GovernanceAndRisks
+    short_term: ShortTermListingMetrics = field(default_factory=ShortTermListingMetrics)
     sme_metrics: Optional[SMERiskMetrics] = None
 
     @classmethod
@@ -182,6 +196,20 @@ class IPOProfile:
             promoter_legal_disputes=bool(gov_data.get("promoter_legal_disputes", False))
         )
 
+        # Short term listing metrics
+        st_data = data.get("short_term_metrics", {})
+        short_term = ShortTermListingMetrics(
+            gmp_inr=float(st_data.get("gmp_inr", 0.0)),
+            gmp_trend=st_data.get("gmp_trend", "STABLE"),
+            qib_subscription_times=float(st_data.get("qib_subscription_times", 1.0)),
+            nii_subscription_times=float(st_data.get("nii_subscription_times", 1.0)),
+            retail_subscription_times=float(st_data.get("retail_subscription_times", 1.0)),
+            total_subscription_times=float(st_data.get("total_subscription_times", 1.0)),
+            anchor_quality=st_data.get("anchor_quality", "AVERAGE"),
+            kostak_rate_inr=float(st_data.get("kostak_rate_inr", 0.0)),
+            subject_to_sauda_inr=float(st_data.get("subject_to_sauda_inr", 0.0))
+        )
+
         sme_metrics = None
         if "sme_metrics" in data or meta.category in (ExchangeCategory.SME_NSE, ExchangeCategory.SME_BSE):
             sme_raw = data.get("sme_metrics", {})
@@ -201,5 +229,6 @@ class IPOProfile:
             issue_structure=issue_structure,
             peers=peers,
             governance=governance,
+            short_term=short_term,
             sme_metrics=sme_metrics
         )

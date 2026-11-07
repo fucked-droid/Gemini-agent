@@ -13,6 +13,17 @@
     "close_date": "2026-11-14",
     "listing_date": "2026-11-19"
   },
+  "short_term_metrics": {
+    "gmp_inr": 185.0,
+    "gmp_trend": "RISING",
+    "qib_subscription_times": 88.5,
+    "nii_subscription_times": 62.0,
+    "retail_subscription_times": 25.4,
+    "total_subscription_times": 58.2,
+    "anchor_quality": "TIER_1_MARQUEE",
+    "kostak_rate_inr": 850.0,
+    "subject_to_sauda_inr": 5800.0
+  },
   "financials": [
     {
       "year_label": "FY24",

@@ -1,10 +1,13 @@
 # 🏛️ IPO Intelligence Engine
 
-> Institutional-Grade Fundamental Valuation, Moat Audit & Risk Intelligence System for **Mainboard** & **SME** IPOs.
+> Short-Term Listing Gain, Quick Profit Booking & T+0 Exit Strategy System for **Mainboard** & **SME** IPOs.
 
-## 🎯 Purpose
-Retail investors often get trapped chasing Grey Market Premium (GMP) into overvalued promoter exit vehicles. 
-The **IPO Intelligence Engine** performs a multi-dimensional audit of DRHP/RHP financial statements to determine whether an IPO is an enduring **Long-Term Compounder** or an **Avoid / Promoter Cash-Out Trap**.
+## 🎯 Purpose & Strategy: "Apply, Book Profit, and Sell"
+Retail traders don't want to get stuck bagholding overpriced IPOs. 
+The **IPO Intelligence Engine** evaluates live Grey Market Premium (GMP), Institutional QIB subscription rushes, and float dynamics to answer:
+1. **Should you apply for quick listing gain?**
+2. **What is the expected listing profit per lot (₹)?**
+3. **Exact Listing Day (T+0) 9:15 AM Sell Strategy: When and how to exit to lock in 100% gains.**
 
 ---
 

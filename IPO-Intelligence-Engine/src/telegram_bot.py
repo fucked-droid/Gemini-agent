@@ -7,67 +7,60 @@ from src.models.ipo_schema import VerdictTier
 
 
 def format_telegram_ipo_alert(eval_res: FundamentalEvaluation) -> str:
-    """Formats an institutional fundamental evaluation for Telegram mobile alerts."""
-    if eval_res.verdict == VerdictTier.STRONG_BUY:
-        icon = "💎"
-        tier_str = "LONG-TERM COMPOUNDER (STRONG BUY)"
-    elif eval_res.verdict == VerdictTier.BUY_ON_DIPS:
-        icon = "📈"
-        tier_str = "CONDITIONAL BUY (ACCUMULATE ON DIPS)"
-    elif eval_res.verdict == VerdictTier.SPECULATIVE:
-        icon = "⚠️"
-        tier_str = "SPECULATIVE / HIGH RISK"
+    """Formats an IPO evaluation for short-term listing gain & exit alerts on Telegram."""
+    if eval_res.verdict == VerdictTier.APPLY_LISTING_POP:
+        icon = "🚀"
+        tier_str = "APPLY FOR LISTING POP (STRONG BUY & SELL)"
+    elif eval_res.verdict == VerdictTier.APPLY_SPECULATIVE:
+        icon = "⚡"
+        tier_str = "APPLY FOR SPECULATIVE FLIP"
+    elif eval_res.verdict == VerdictTier.AVOID_LOW_GAIN:
+        icon = "✋"
+        tier_str = "AVOID / LOW LISTING GAIN"
     else:
         icon = "🛑"
-        tier_str = "AVOID / PROMOTER TRAP"
+        tier_str = "STRICT AVOID / DISCOUNT TRAP"
 
-    f = eval_res.financial_res
-    v = eval_res.valuation_res
-    g = eval_res.governance_res
-    s = eval_res.sme_res
-
-    prem_sign = "+" if v.valuation_premium_pct > 0 else ""
+    st = eval_res.short_term_res
+    pb = eval_res.playbook
 
     msg = [
-        f"{icon} *IPO FUNDAMENTAL INTELLIGENCE | {eval_res.category}*",
-        f"🏢 *{eval_res.company_name}* (`{eval_res.symbol}`)",
+        f"{icon} *IPO SHORT-TERM LISTING GAIN ALERT*",
+        f"🏢 *{eval_res.company_name}* (`{eval_res.symbol}` | {eval_res.category})",
         f"━━━━━━━━━━━━━━━━━━━━━━━━━",
-        f"🎯 *VERDICT*: *{tier_str}*",
-        f"📊 *FUNDAMENTAL SCORE*: `{eval_res.composite_score} / 100`",
-        f"💰 *Price Band*: `₹{eval_res.issue_price:,.2f}` | *Lot*: `{eval_res.lot_size} shares` (₹{eval_res.lot_cost_inr:,.0f})",
+        f"🎯 *APPLICATION VERDICT*: *{tier_str}*",
+        f"📊 *Listing Score*: `{eval_res.composite_score} / 100`",
+        f"💰 *Issue Price*: `₹{eval_res.issue_price:,.2f}` | *Lot*: `{eval_res.lot_size}` (₹{eval_res.lot_cost_inr:,.0f})",
         f"━━━━━━━━━━━━━━━━━━━━━━━━━",
-        f"📍 *INVESTMENT THESIS*:",
-        f"_{eval_res.recommendation_summary}_",
-        f"",
-        f"👉 *STRATEGY*: {eval_res.suggested_action}",
+        f"💸 *EXPECTED LISTING PROFIT*:",
+        f"• *Expected Pop*: `+{eval_res.expected_gain_pct}%` (Target: `₹{eval_res.expected_listing_price:,.1f}`)",
+        f"• *Estimated Profit/Lot*: `₹{eval_res.expected_profit_per_lot_inr:,.0f}`",
+        f"• *Current GMP*: `₹{st.gmp_inr:,.1f}` ({st.gmp_trend} Trend)",
+        f"• *Institutional QIB Rush*: `{st.qib_subscription}x` (Total: `{st.total_subscription}x`)",
         f"━━━━━━━━━━━━━━━━━━━━━━━━━",
-        f"🔍 *CORE PILLAR AUDIT*:",
-        f"• *Growth*: 3-Yr Rev CAGR `{f.revenue_cagr_pct}%` | PAT CAGR `{f.pat_cagr_pct}%`",
-        f"• *Efficiency*: ROCE `{f.latest_roce_pct}%` | RoNW `{f.latest_ronw_pct}%`",
-        f"• *Cash Quality*: CFO/PAT Ratio `{f.cfo_to_pat_ratio}x` | D/E `{f.latest_debt_to_equity}x`",
-        f"• *Valuation*: Implied P/E `{v.implied_pe}x` vs Peer `{v.industry_pe_median}x` ({prem_sign}{v.valuation_premium_pct}%)",
-        f"• *Structure*: Fresh `{g.fresh_issue_pct}%` / OFS `{g.ofs_pct}%` | Promoter `{g.promoter_post_holding_pct}%`",
+        f"⏰ *LISTING DAY 9:15 AM SELL STRATEGY*:",
+        f"1. *Pre-Open (9:00 AM)*: {pb.pre_open_action}",
+        f"2. *Market Open (9:15 AM)*: {pb.market_open_sell_rule}",
+        f"3. *Upper Circuit*: {pb.circuit_freeze_strategy}",
+        f"4. *Bailout*: {pb.emergency_bailout_rule}",
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"✨ *KEY CATALYSTS*:",
     ]
 
-    if s.is_sme:
-        msg.append(f"• *SME Risk*: Top 3 Clients `{s.top_3_revenue_pct}%` | Debtors `{s.debtor_days}d`")
+    for c in eval_res.key_strengths[:3]:
+        msg.append(f"• {c}")
 
     msg.append("")
-    msg.append("✨ *KEY MOATS*:")
-    for st in eval_res.key_strengths[:3]:
-        msg.append(f"• {st}")
-
-    msg.append("")
-    msg.append("⚠️ *KEY RISKS*:")
+    msg.append("⚠️ *RISKS & TRAPS*:")
     if eval_res.key_risks:
-        for rf in eval_res.key_risks[:3]:
-            msg.append(f"• {rf}")
+        for r in eval_res.key_risks[:3]:
+            msg.append(f"• {r}")
     else:
-        msg.append("• No critical governance or financial red flags detected.")
+        msg.append("• Zero significant listing risks identified.")
 
     msg.append("")
-    msg.append("🛡️ *LONG-TERM DISCIPLINE*:")
-    msg.append("_Invest in businesses with high ROCE and honest promoters. Avoid overpaying at IPO peaks._")
+    msg.append("🛡️ *TRADER DISCIPLINE*:")
+    msg.append("_Never marry an IPO. Lock in listing profits and protect your trading capital._")
 
     return "\n".join(msg)
 
