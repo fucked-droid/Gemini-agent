@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "company_name": "JSW Cement Limited",
+    "symbol": "JSWCEM",
+    "sector": "Infrastructure & Building Materials",
+    "category": "MAINBOARD",
+    "issue_price": 320.0,
+    "price_band_low": 300.0,
+    "price_band_high": 320.0,
+    "lot_size": 45,
+    "issue_size_crores": 4000.0,
+    "open_date": "Upcoming Q1 2025/2026",
+    "close_date": "TBA",
+    "listing_date": "TBA"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 48.0,
+    "gmp_trend": "STABLE",
+    "qib_subscription_times": 18.5,
+    "nii_subscription_times": 14.0,
+    "retail_subscription_times": 8.5,
+    "total_subscription_times": 13.8,
+    "anchor_quality": "TIER_1_MARQUEE",
+    "kostak_rate_inr": 350.0,
+    "subject_to_sauda_inr": 1800.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 5800.0,
+      "ebitda_crores": 920.0,
+      "pat_crores": 320.0,
+      "net_worth_crores": 3800.0,
+      "total_debt_crores": 4200.0,
+      "cfo_crores": 780.0,
+      "roce_pct": 11.5,
+      "ronw_pct": 8.4
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 6700.0,
+      "ebitda_crores": 1150.0,
+      "pat_crores": 440.0,
+      "net_worth_crores": 4350.0,
+      "total_debt_crores": 4100.0,
+      "cfo_crores": 920.0,
+      "roce_pct": 13.2,
+      "ronw_pct": 10.1
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 7900.0,
+      "ebitda_crores": 1420.0,
+      "pat_crores": 610.0,
+      "net_worth_crores": 5100.0,
+      "total_debt_crores": 3900.0,
+      "cfo_crores": 1180.0,
+      "roce_pct": 15.4,
+      "ronw_pct": 12.0
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 2000.0,
+    "ofs_crores": 2000.0,
+    "promoter_pre_holding_pct": 78.0,
+    "promoter_post_holding_pct": 62.5,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Funding capital expenditure for establishing a new clinker grinding unit at Nagaur",
+      "Prepayment or repayment of outstanding borrowings",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "UltraTech Cement Ltd",
+        "pe_ratio": 42.5,
+        "pb_ratio": 4.8,
+        "roe_pct": 12.5,
+        "ev_ebitda": 21.0
+      },
+      {
+        "name": "Ambuja Cements Ltd",
+        "pe_ratio": 36.8,
+        "pb_ratio": 3.6,
+        "roe_pct": 11.0,
+        "ev_ebitda": 18.5
+      }
+    ],
+    "industry_pe_median": 39.65,
+    "industry_pb_median": 4.2
+  },
+  "governance": {
+    "pending_litigations_crores": 28.0,
+    "contingent_liabilities_crores": 35.0,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  }
+}

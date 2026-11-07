@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "company_name": "National Securities Depository Limited",
+    "symbol": "NSDL",
+    "sector": "Capital Markets Infrastructure & Fintech",
+    "category": "MAINBOARD",
+    "issue_price": 650.0,
+    "price_band_low": 615.0,
+    "price_band_high": 650.0,
+    "lot_size": 23,
+    "issue_size_crores": 3500.0,
+    "open_date": "Upcoming Q1 2025/2026",
+    "close_date": "TBA",
+    "listing_date": "TBA"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 240.0,
+    "gmp_trend": "RISING",
+    "qib_subscription_times": 78.0,
+    "nii_subscription_times": 52.0,
+    "retail_subscription_times": 22.0,
+    "total_subscription_times": 51.5,
+    "anchor_quality": "TIER_1_MARQUEE",
+    "kostak_rate_inr": 1200.0,
+    "subject_to_sauda_inr": 6200.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 1100.0,
+      "ebitda_crores": 420.0,
+      "pat_crores": 280.0,
+      "net_worth_crores": 1450.0,
+      "total_debt_crores": 0.0,
+      "cfo_crores": 270.0,
+      "roce_pct": 26.5,
+      "ronw_pct": 24.2
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 1380.0,
+      "ebitda_crores": 550.0,
+      "pat_crores": 365.0,
+      "net_worth_crores": 1780.0,
+      "total_debt_crores": 0.0,
+      "cfo_crores": 350.0,
+      "roce_pct": 28.2,
+      "ronw_pct": 26.1
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 1750.0,
+      "ebitda_crores": 720.0,
+      "pat_crores": 480.0,
+      "net_worth_crores": 2200.0,
+      "total_debt_crores": 0.0,
+      "cfo_crores": 460.0,
+      "roce_pct": 31.0,
+      "ronw_pct": 28.5
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 0.0,
+    "ofs_crores": 3500.0,
+    "promoter_pre_holding_pct": 0.0,
+    "promoter_post_holding_pct": 0.0,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Offer for Sale by existing institutional shareholders (IDBI Bank, NSE, Union Bank, SBI)"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Central Depository Services (India) Ltd (CDSL)",
+        "pe_ratio": 55.4,
+        "pb_ratio": 15.2,
+        "roe_pct": 31.5,
+        "ev_ebitda": 38.0
+      },
+      {
+        "name": "BSE Limited",
+        "pe_ratio": 48.0,
+        "pb_ratio": 12.0,
+        "roe_pct": 24.0,
+        "ev_ebitda": 34.0
+      }
+    ],
+    "industry_pe_median": 51.7,
+    "industry_pb_median": 13.6
+  },
+  "governance": {
+    "pending_litigations_crores": 12.0,
+    "contingent_liabilities_crores": 15.0,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "company_name": "HDB Financial Services Limited",
+    "symbol": "HDBFIN",
+    "sector": "Non-Banking Financial Company (NBFC)",
+    "category": "MAINBOARD",
+    "issue_price": 740.0,
+    "price_band_low": 700.0,
+    "price_band_high": 740.0,
+    "lot_size": 20,
+    "issue_size_crores": 12500.0,
+    "open_date": "Upcoming Q1 2025/2026",
+    "close_date": "TBA",
+    "listing_date": "TBA"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 125.0,
+    "gmp_trend": "STABLE",
+    "qib_subscription_times": 28.5,
+    "nii_subscription_times": 18.0,
+    "retail_subscription_times": 12.0,
+    "total_subscription_times": 19.5,
+    "anchor_quality": "TIER_1_MARQUEE",
+    "kostak_rate_inr": 650.0,
+    "subject_to_sauda_inr": 3100.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 12400.0,
+      "ebitda_crores": 3200.0,
+      "pat_crores": 1960.0,
+      "net_worth_crores": 11800.0,
+      "total_debt_crores": 54000.0,
+      "cfo_crores": 2100.0,
+      "roce_pct": 14.2,
+      "ronw_pct": 16.6
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 14200.0,
+      "ebitda_crores": 3850.0,
+      "pat_crores": 2450.0,
+      "net_worth_crores": 13900.0,
+      "total_debt_crores": 61000.0,
+      "cfo_crores": 2600.0,
+      "roce_pct": 15.5,
+      "ronw_pct": 17.6
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 16800.0,
+      "ebitda_crores": 4650.0,
+      "pat_crores": 3100.0,
+      "net_worth_crores": 16500.0,
+      "total_debt_crores": 69000.0,
+      "cfo_crores": 3300.0,
+      "roce_pct": 16.8,
+      "ronw_pct": 18.8
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 2500.0,
+    "ofs_crores": 10000.0,
+    "promoter_pre_holding_pct": 94.6,
+    "promoter_post_holding_pct": 74.0,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Augmenting Tier-I capital base to meet future capital requirements",
+      "Offer for Sale by Promoter HDFC Bank Limited"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Bajaj Finance Ltd",
+        "pe_ratio": 31.8,
+        "pb_ratio": 5.4,
+        "roe_pct": 21.0,
+        "ev_ebitda": 22.0
+      },
+      {
+        "name": "Cholamandalam Investment & Finance",
+        "pe_ratio": 27.5,
+        "pb_ratio": 4.6,
+        "roe_pct": 19.5,
+        "ev_ebitda": 19.0
+      }
+    ],
+    "industry_pe_median": 29.65,
+    "industry_pb_median": 5.0
+  },
+  "governance": {
+    "pending_litigations_crores": 45.0,
+    "contingent_liabilities_crores": 65.0,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  }
+}
