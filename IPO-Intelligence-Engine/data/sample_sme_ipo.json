@@ -1,0 +1,99 @@
+{
+  "meta": {
+    "company_name": "Precision CNC Tech SME Ltd",
+    "symbol": "PRECNC",
+    "sector": "Industrial Engineering & Defense Spares",
+    "category": "SME_NSE",
+    "issue_price": 140.0,
+    "price_band_low": 135.0,
+    "price_band_high": 140.0,
+    "lot_size": 1000,
+    "issue_size_crores": 45.0,
+    "open_date": "2026-11-15",
+    "close_date": "2026-11-18",
+    "listing_date": "2026-11-23"
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 28.0,
+      "ebitda_crores": 5.2,
+      "pat_crores": 3.1,
+      "net_worth_crores": 14.0,
+      "total_debt_crores": 4.5,
+      "cfo_crores": 2.8,
+      "roce_pct": 19.5,
+      "ronw_pct": 22.1
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 42.0,
+      "ebitda_crores": 8.5,
+      "pat_crores": 5.4,
+      "net_worth_crores": 21.0,
+      "total_debt_crores": 5.2,
+      "cfo_crores": 4.9,
+      "roce_pct": 23.2,
+      "ronw_pct": 25.7
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 65.0,
+      "ebitda_crores": 14.2,
+      "pat_crores": 9.6,
+      "net_worth_crores": 33.0,
+      "total_debt_crores": 6.8,
+      "cfo_crores": 8.7,
+      "roce_pct": 26.5,
+      "ronw_pct": 29.0
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 45.0,
+    "ofs_crores": 0.0,
+    "promoter_pre_holding_pct": 94.0,
+    "promoter_post_holding_pct": 71.5,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Purchase of multi-axis CNC machines for aerospace machining",
+      "Working capital requirements",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "PTC Industries Ltd",
+        "pe_ratio": 55.0,
+        "pb_ratio": 12.0,
+        "roe_pct": 18.0,
+        "ev_ebitda": 32.0
+      },
+      {
+        "name": "Dynamatic Technologies",
+        "pe_ratio": 44.0,
+        "pb_ratio": 6.5,
+        "roe_pct": 15.0,
+        "ev_ebitda": 21.0
+      }
+    ],
+    "industry_pe_median": 49.5,
+    "industry_pb_median": 9.25
+  },
+  "governance": {
+    "pending_litigations_crores": 0.4,
+    "contingent_liabilities_crores": 0.8,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  },
+  "sme_metrics": {
+    "is_sme": true,
+    "top_3_clients_revenue_pct": 48.0,
+    "top_5_clients_revenue_pct": 64.0,
+    "debtor_days": 65.0,
+    "working_capital_days": 85.0,
+    "single_facility_risk": false,
+    "market_maker_spread_pct": 1.8
+  }
+}

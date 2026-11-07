@@ -1,0 +1,2 @@
+# Zero-heavy-dependency standard library design
+# Runs natively on Windows, Linux, macOS, and Android Termux!

@@ -15,7 +15,9 @@
     "groww": "python Daily-Market-Regime-Engine/scan_nifty.py --groww",
     "scan:live": "python Daily-Market-Regime-Engine/scan_nifty.py --live",
     "scan:chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart",
-    "chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart"
+    "chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart",
+    "ipo:scan": "python IPO-Intelligence-Engine/cli.py scan",
+    "ipo:test": "python IPO-Intelligence-Engine/run_all_tests.py"
   },
   "keywords": [],
   "author": "",

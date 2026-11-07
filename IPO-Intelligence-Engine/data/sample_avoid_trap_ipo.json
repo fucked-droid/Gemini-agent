@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "company_name": "Glitter HyperBrand Retail Ltd",
+    "symbol": "GLITTER",
+    "sector": "Fast Fashion & E-Commerce",
+    "category": "MAINBOARD",
+    "issue_price": 780.0,
+    "price_band_low": 740.0,
+    "price_band_high": 780.0,
+    "lot_size": 19,
+    "issue_size_crores": 3200.0,
+    "open_date": "2026-11-20",
+    "close_date": "2026-11-22",
+    "listing_date": "2026-11-27"
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 1200.0,
+      "ebitda_crores": 45.0,
+      "pat_crores": 12.0,
+      "net_worth_crores": 280.0,
+      "total_debt_crores": 650.0,
+      "cfo_crores": -42.0,
+      "roce_pct": 5.4,
+      "ronw_pct": 4.2
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 1350.0,
+      "ebitda_crores": 50.0,
+      "pat_crores": 15.0,
+      "net_worth_crores": 295.0,
+      "total_debt_crores": 780.0,
+      "cfo_crores": -68.0,
+      "roce_pct": 4.8,
+      "ronw_pct": 5.0
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 1420.0,
+      "ebitda_crores": 55.0,
+      "pat_crores": 18.0,
+      "net_worth_crores": 313.0,
+      "total_debt_crores": 890.0,
+      "cfo_crores": -95.0,
+      "roce_pct": 4.5,
+      "ronw_pct": 5.7
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 200.0,
+    "ofs_crores": 3000.0,
+    "promoter_pre_holding_pct": 78.0,
+    "promoter_post_holding_pct": 39.5,
+    "promoter_pledge_pct": 35.0,
+    "objects_of_issue": [
+      "General corporate purposes",
+      "Selling shareholders offer for sale"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Trent Ltd",
+        "pe_ratio": 95.0,
+        "pb_ratio": 24.0,
+        "roe_pct": 28.0,
+        "ev_ebitda": 45.0
+      },
+      {
+        "name": "V-Mart Retail",
+        "pe_ratio": 35.0,
+        "pb_ratio": 4.2,
+        "roe_pct": 8.0,
+        "ev_ebitda": 14.0
+      }
+    ],
+    "industry_pe_median": 45.0,
+    "industry_pb_median": 6.5
+  },
+  "governance": {
+    "pending_litigations_crores": 85.0,
+    "contingent_liabilities_crores": 120.0,
+    "auditor_qualifications": true,
+    "related_party_transactions_high": true,
+    "promoter_legal_disputes": true
+  }
+}

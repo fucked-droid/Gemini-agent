@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "company_name": "Aether Solar CleanTech Ltd",
+    "symbol": "AETHERSOL",
+    "sector": "Renewable Energy & Capital Goods",
+    "category": "MAINBOARD",
+    "issue_price": 450.0,
+    "price_band_low": 425.0,
+    "price_band_high": 450.0,
+    "lot_size": 33,
+    "issue_size_crores": 1200.0,
+    "open_date": "2026-11-12",
+    "close_date": "2026-11-14",
+    "listing_date": "2026-11-19"
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 450.0,
+      "ebitda_crores": 85.0,
+      "pat_crores": 48.0,
+      "net_worth_crores": 210.0,
+      "total_debt_crores": 45.0,
+      "cfo_crores": 44.0,
+      "roce_pct": 21.5,
+      "ronw_pct": 22.8
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 680.0,
+      "ebitda_crores": 142.0,
+      "pat_crores": 86.0,
+      "net_worth_crores": 320.0,
+      "total_debt_crores": 50.0,
+      "cfo_crores": 78.0,
+      "roce_pct": 25.2,
+      "ronw_pct": 26.8
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 1050.0,
+      "ebitda_crores": 235.0,
+      "pat_crores": 152.0,
+      "net_worth_crores": 510.0,
+      "total_debt_crores": 62.0,
+      "cfo_crores": 141.0,
+      "roce_pct": 28.4,
+      "ronw_pct": 29.8
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 1000.0,
+    "ofs_crores": 200.0,
+    "promoter_pre_holding_pct": 82.5,
+    "promoter_post_holding_pct": 68.2,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Funding capital expenditure for setting up 4GW module line",
+      "Repayment/prepayment of certain outstanding borrowings",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Premier Energies Ltd",
+        "pe_ratio": 42.0,
+        "pb_ratio": 8.5,
+        "roe_pct": 24.5,
+        "ev_ebitda": 22.0
+      },
+      {
+        "name": "Waaree Energies Ltd",
+        "pe_ratio": 38.5,
+        "pb_ratio": 7.8,
+        "roe_pct": 26.0,
+        "ev_ebitda": 20.4
+      }
+    ],
+    "industry_pe_median": 40.25,
+    "industry_pb_median": 8.15
+  },
+  "governance": {
+    "pending_litigations_crores": 3.2,
+    "contingent_liabilities_crores": 5.0,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  }
+}
