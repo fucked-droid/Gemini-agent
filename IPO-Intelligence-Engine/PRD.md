@@ -1,57 +1,51 @@
 # Product Requirements Document (PRD)
-# IPO Intelligence Engine: Long-Term Fundamental Wealth & SME Evaluation System
+# IPO Intelligence Engine: Short-Term Listing Gain, T+0 Exit & 4-Pillar Fundamental System
 
 ## 1. Executive Summary
-The **IPO Intelligence Engine** is an institutional-grade fundamental valuation and risk intelligence platform for Indian IPOs (both **Mainboard** on NSE/BSE and **SME** on NSE Emerge / BSE SME). 
+The **IPO Intelligence Engine** is an institutional-grade primary market intelligence platform for Indian IPOs (both **Mainboard** on NSE/BSE and **SME** on NSE Emerge / BSE SME). 
 
-Unlike shallow retail tools that solely track Grey Market Premium (GMP) for day-one flips, this engine conducts a rigorous audit of the company's **DRHP/RHP financial statements, competitive moat, promoter governance, debt obligations, peer valuation multiples, and issue structure (Fresh Issue vs OFS)** to determine if an IPO is an enduring **Long-Term Compounder** or a **Promoter Exit Trap**.
-
----
-
-## 2. Core Pillars of Analysis
-
-### Pillar 1: Financial Quality & Growth Engine (3-Year Audit)
-- **Revenue CAGR & PAT CAGR**: Consistent top-line and bottom-line scaling over 3 fiscal years.
-- **Capital Efficiency (ROCE & RoNW/ROE)**: Return on Capital Employed (target > 15-20%) and Return on Net Worth.
-- **Earnings Quality / Cash Flow Conversion**: $CFO / PAT$ ratio. Flags companies reporting paper profits while bleeding operating cash flow ($CFO < 0$).
-- **Balance Sheet Fortification**: Debt-to-Equity ($D/E$) ratio, interest coverage ratio, and debt trajectory.
-
-### Pillar 2: Valuation & Peer Benchmarking
-- **Relative Multiples**: Post-issue P/E, P/B, and EV/EBITDA compared against verified, listed domestic peers in the same industry.
-- **Price-to-Growth (PEG Ratio)**: Ensures high P/E is justified by high growth ($PEG < 1.5$).
-- **Greed Premium Calculation**: Computes the percentage premium or discount demanded by promoters relative to the industry peer median.
-
-### Pillar 3: Issue Structure & Corporate Governance
-- **Fresh Issue vs. Offer for Sale (OFS)**: High fresh issue indicates expansion capital; high OFS (> 70%) suggests early investors and promoters cashing out at peak valuations.
-- **Object of Issue**: Classification of capital deployment (Growth Capex / R&D / Debt Reduction vs General Corporate Purposes).
-- **Promoter Skin in the Game**: Post-issue promoter holding percentage and share pledge status.
-- **Litigation & Contingent Liabilities**: Material legal proceedings as a percentage of net worth.
-
-### Pillar 4: SME-Specific Risk Guardrails (NSE Emerge / BSE SME)
-- **Customer Concentration Risk**: Percentage of revenue derived from top 3/top 5 clients. (High risk if > 60%).
-- **Working Capital & Debtor Days**: Stretched cash cycles in small businesses.
-- **Illiquidity & Lot Size Friction**: Factoring minimum 100k+ INR ticket size and 2-way market-making spreads into risk rating.
+The system unifies real-time live market scraping (Chittorgarh & NSE India) with a disciplined Short-Term Listing Gain (T+0 9:15 AM exit) playbook and a 4-Pillar Fundamental Safety Floor, ensuring retail investors capture listing pops while systematically avoiding promoter exit traps.
 
 ---
 
-## 3. Decision Framework & Scoring Model
-The engine synthesizes all quantitative and qualitative metrics into a **Fundamental Score (0 - 100)**:
-- **Financial Quality Score (35%)**: Revenue/PAT CAGR, ROCE, RoNW, CFO/PAT conversion.
-- **Valuation & Multiples Score (30%)**: P/E discount/premium vs peers, PEG ratio.
-- **Issue Structure & Governance Score (20%)**: Fresh Issue %, promoter stake, low litigation.
-- **Balance Sheet & Solvency Score (15%)**: Low D/E, healthy interest coverage.
+## 2. Core Pillars & Architecture
 
-### Output Classification Verdicts:
-1. 💎 **LONG-TERM COMPOUNDER (STRONG BUY)** (Score $\ge 75$): Industry leader, ROCE > 20%, low debt, fair peer valuation, strong cash conversion.
-2. 📈 **CONDITIONAL BUY (WAIT FOR POST-LISTING DIP)** (Score $60 - 74$): Exceptional business fundamentals, but rich IPO valuation leaves zero margin of safety. Recommended to accumulate on post-listing cooldown.
-3. ⚠️ **SPECULATIVE / HIGH RISK** (Score $45 - 59$): Acceptable growth but burdened by customer concentration, debt, or short operating history.
-4. 🛑 **AVOID / PROMOTER CASH-OUT TRAP** (Score $< 45$): High OFS, negative operating cash flows, exorbitant valuation premium vs listed peers, or dubious governance.
+### Pillar 1: Real-Time Live Feed & Issue Structure Audit
+- **Direct Scraping**: Real-time integration with Chittorgarh and NSE India with zero stale data filtering.
+- **Metrics Tracked**: Live Grey Market Premium (GMP ₹ and %), Kostak/Sauda rates, QIB/HNI/Retail subscriptions, and official 7-10 day market event calendars.
+- **Issue Structure Audit**: Strict breakdown of Fresh Issue vs Offer for Sale (OFS). Flags offerings with > 70% OFS as promoter cash-out risks.
+
+### Pillar 2: Short-Term Listing Gain & 9:15 AM T+0 Playbook
+- **Expected Listing Pop**: Calculates expected listing price (₹), listing gain (%), and profit per lot (₹).
+- **Listing Day (T+0) Rules**:
+  - 9:00 AM – 9:08 AM discovery assessment.
+  - 9:15 AM bell market sell to secure 100% allotment gains.
+  - Upper Circuit trailing stop trigger for momentum runners.
+  - Cut-loss emergency execution for discount listing traps.
+
+### Pillar 3: 4-Pillar Fundamental Safety Floor
+- **Financial Quality**: 3-Year Revenue CAGR & PAT CAGR audit with EBITDA margin stability.
+- **Capital Efficiency**: ROCE and RoNW/ROE efficiency (benchmarked against > 15-20% institutional standards).
+- **Cash Flow Conversion**: Operating Cash Flow to Net Profit ($CFO / PAT$) checks to flag paper profit traps.
+- **Valuation Benchmarking**: Implied post-issue P/E, P/B, EV/EBITDA vs listed peers, with promoter greed premium calculation.
+
+### Pillar 4: SME-Specific Operational Guardrails (NSE Emerge / BSE SME)
+- **Customer Concentration Risk**: Automated risk rating if Top 3 clients exceed 65% of revenue.
+- **Working Capital Cycles**: Scans debtor days and cash conversion friction.
+- **Liquidity & Spread Guardrails**: Calculates ₹1,00,000+ minimum lot ticket requirements and market-maker 2-way bid-ask spread impact.
+
+### Pillar 5: Mobile & Android Termux Compatibility
+- **Zero Binary Dependencies**: Built 100% on pure Python standard library (`dataclasses`, `urllib.request`, `json`, `argparse`, `ssl`).
+- **Universal Execution**: Instant execution on Android Termux, Linux servers, macOS, and Windows without `pip install` or compilation.
+- **Telegram Bot Sentinel**: Automated mobile alerts with HTML formatting and multi-endpoint failover.
+
+### Pillar 6: Test Suite & Verification
+- **14/14 Unit & Integration Tests**: 100% test pass rate across financial analysis, governance audits, SME risks, and listing playbooks.
 
 ---
 
-## 4. Technical Architecture & Tech Stack
-- **Language**: Python 3.10+
-- **Data Models**: Python dataclasses with strict type validation, missing-field fallbacks, and boundary assertions.
-- **Storage**: JSON schemas for normalized IPO company profiles, 3-year historical financials, and peer datasets.
-- **Reporting**: Terminal ANSI color dashboard, structured Markdown reports, and Telegram Bot notifications.
-- **Testing**: 100% automated unit test coverage across all analyzers and edge cases.
+## 3. Decision Framework & Short-Term Tiers
+1. 🚀 **APPLY FOR LISTING POP (STRONG BUY & SELL)** (Score $\ge 75$): Explosive QIB rush, high GMP (> 20%), strong fresh issue, clean governance.
+2. ⚡ **APPLY FOR SPECULATIVE FLIP** (Score $60 - 74$): Decent GMP (10-20%), acceptable subscription, strict 9:15 AM cut rule.
+3. ✋ **AVOID / LOW LISTING GAIN** (Score $45 - 59$): Flat GMP (< 10%), weak institutional demand, high float.
+4. 🛑 **STRICT AVOID / DISCOUNT TRAP** (Score $< 45$): Negative GMP, heavy OFS, negative CFO, high debtor days.

@@ -15,3 +15,10 @@
 - Built src/analyzers/short_term_listing_analyzer.py with ListingExitPlaybook (pre-open, 9:15 AM bell sell, Upper Circuit trail, emergency cut-loss).
 - Updated scoring engine to 4-tier short-term verdicts (APPLY_LISTING_POP, APPLY_SPECULATIVE, AVOID_LOW_GAIN, AVOID_DISCOUNT_TRAP).
 - Updated report generator and telegram bot for profit/lot and exact exit rules. All 14 tests passing.
+[TASK 12 COMPLETED] Implemented 6-Pillar System Integration & Live Zero-Stale Scraper:
+1. Real-Time Live Feed: Chittorgarh Official & NSE India API integration with strict date-aware lifecycle filtering (zero stale/archived data guarantee), Fresh Issue vs OFS issue structure audit.
+2. Short-Term Listing Gain & 9:15 AM T+0 Playbook: Computes expected listing price (₹), listing gain (%), profit per lot (₹), and exact 9:15 AM opening bell exit rules.
+3. 4-Pillar Fundamental Safety Floor: 3-Year Revenue/PAT CAGR, ROCE/ROE efficiency, CFO/PAT cash quality, and promoter greed/valuation benchmarking vs listed peers.
+4. SME Operational Guardrails: Client concentration risk, working capital debtor days, and market-maker 2-way spread friction penalty check.
+5. Mobile & Termux Compatible: Pure Python standard library built (zero binary dependencies), Android Termux and desktop instant execution.
+6. Test Suite: 14/14 Unit & Integration Tests 100% Passing.

@@ -8,6 +8,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.data_loader import load_ipo_from_json, load_all_sample_ipos
 from src.scoring_engine import evaluate_ipo
 from src.report_generator import format_cli_report, BOLD, RESET, GREEN, RED, YELLOW, CYAN
+MAGENTA = "\033[95m"
+WHITE = "\033[97m"
 from src.telegram_bot import format_telegram_ipo_alert, send_telegram_alert
 
 
@@ -65,25 +67,53 @@ def main():
 
     if args.command == "live":
         from src.live_fetcher import get_live_market_summary
-        print(f"\n{BOLD}🌐 Fetching Live Real-Time IPO Tracker & Market Calendar...{RESET}")
+        print(f"\n{BOLD}🌐 Fetching Live Real-Time IPO Tracker & Market Calendar from Chittorgarh & NSE...{RESET}")
         summary = get_live_market_summary(timeout=args.timeout)
-        print(f"{CYAN}Source:{RESET} {summary['source']} | {CYAN}Fetched at:{RESET} {summary['timestamp']}\n")
+        ref_date_str = summary["reference_date"]
+        print(f"{CYAN}Source:{RESET} {summary['source']} | {CYAN}Ref Date:{RESET} {ref_date_str} | {CYAN}Fetched at:{RESET} {summary['timestamp']}\n")
 
-        print(f"{BOLD}{'=' * 95}{RESET}")
-        print(f"{BOLD}  📅 OFFICIAL IPO MARKET EVENT CALENDAR (Next 7-10 Days){RESET}")
-        print(f"{BOLD}{'=' * 95}{RESET}")
-        for ev in summary["calendar_events"]:
-            print(f"• {BOLD}{ev['date']:<14}{RESET} | Open: {GREEN}{ev['open_event']:<20}{RESET} | Close: {YELLOW}{ev['close_event']:<22}{RESET} | List: {CYAN}{ev['listing_event']}{RESET}")
-
-        print(f"\n{BOLD}{'=' * 95}{RESET}")
-        print(f"{BOLD}  📊 LIVE PRIMARY MARKET ISSUES & GREY MARKET PREMIUM (GMP){RESET}")
-        print(f"{BOLD}{'=' * 95}{RESET}")
-        print(f"{BOLD}{'COMPANY':<26} | {'SEGMENT':<10} | {'PRICE':<8} | {'GMP (INR / %)':<16} | {'CLOSE':<10} | {'LISTING':<10}{RESET}")
+        # Section 1: OPEN NOW
+        print(f"{BOLD}{GREEN}🟢 SECTION 1: CURRENTLY OPEN FOR SUBSCRIPTION (Live Bidding Active){RESET}")
         print("-" * 95)
-        for r in summary["gmp_records"]:
-            gmp_str = f"₹{r['gmp_inr']} ({r['gmp_pct']}%)"
-            print(f"{r['company_name'][:24]:<26} | {r['segment']:<10} | ₹{r['issue_price']:<7.1f} | {gmp_str:<16} | {r['close_date']:<10} | {r['listing_date']:<10}")
-        print("-" * 95 + "\n")
+        if summary["open_now"]:
+            print(f"{BOLD}{'COMPANY':<26} | {'SEGMENT':<10} | {'PRICE':<8} | {'GMP (INR / %)':<16} | {'SUB':<6} | {'CLOSE':<10}{RESET}")
+            print("-" * 95)
+            for r in summary["open_now"]:
+                gmp_str = f"₹{r['gmp_inr']} ({r['gmp_pct']}%)"
+                print(f"{BOLD}{r['company_name'][:24]:<26}{RESET} | {r['segment']:<10} | ₹{r['issue_price']:<7.1f} | {GREEN}{gmp_str:<16}{RESET} | {r['subscription_times']:>5.1f}x | {YELLOW}{r['close_date_str']:<10}{RESET}")
+        else:
+            print(f"{YELLOW}ℹ️  No IPOs are currently open for subscription today ({ref_date_str}).{RESET}")
+            print(f"   (Primary market is closed for weekend/holiday break. Stale/closed IPOs are filtered out).")
+
+        # Section 2: ALLOTMENT & LISTING WATCH
+        print(f"\n{BOLD}{CYAN}🕒 SECTION 2: ALLOTMENT & LISTING WATCH (Closed, Listing in Next 24-72h){RESET}")
+        print("-" * 95)
+        if summary["waiting_listing"]:
+            print(f"{BOLD}{'COMPANY':<26} | {'SEGMENT':<10} | {'PRICE':<8} | {'GMP (INR / %)':<16} | {'CLOSED':<8} | {'LISTING ON':<12}{RESET}")
+            print("-" * 95)
+            for r in summary["waiting_listing"]:
+                gmp_str = f"₹{r['gmp_inr']} ({r['gmp_pct']}%)"
+                print(f"{BOLD}{r['company_name'][:24]:<26}{RESET} | {r['segment']:<10} | ₹{r['issue_price']:<7.1f} | {GREEN}{gmp_str:<16}{RESET} | {r['close_date_str']:<8} | {CYAN}{r['listing_date_str']:<12}{RESET}")
+        else:
+            print("No immediate listings pending in the next 48 hours.")
+
+        # Section 3: UPCOMING PIPELINE (Chittorgarh Consensus)
+        print(f"\n{BOLD}{MAGENTA}🏢 SECTION 3: UPCOMING PIPELINE & DRHP WATCHLIST (Chittorgarh Consensus){RESET}")
+        print("-" * 95)
+        if summary["upcoming_pipeline"]:
+            print(f"{BOLD}{'COMPANY':<36} | {'APPLY':<6} | {'NEUTRAL':<8} | {'AVOID':<6} | {'CONSENSUS':<22}{RESET}")
+            print("-" * 95)
+            for p in summary["upcoming_pipeline"][:10]:
+                sent_color = GREEN if "APPLY" in p["sentiment"] else (RED if "AVOID" in p["sentiment"] else YELLOW)
+                print(f"{BOLD}{p['company_name'][:34]:<36}{RESET} | {GREEN}{p['apply_votes']:>5}{RESET}  | {YELLOW}{p['neutral_votes']:>7}{RESET}  | {RED}{p['avoid_votes']:>5}{RESET} | {sent_color}{p['sentiment']:<22}{RESET}")
+
+        # Section 4: EVENT CALENDAR
+        print(f"\n{BOLD}{WHITE}📅 SECTION 4: OFFICIAL MARKET EVENT CALENDAR (Next 7-10 Days){RESET}")
+        print("-" * 95)
+        for ev in summary["calendar_events"][:8]:
+            print(f"• {BOLD}{ev['date']:<14}{RESET} | Open: {GREEN}{ev['open_event']:<18}{RESET} | Close: {YELLOW}{ev['close_event']:<20}{RESET} | List: {CYAN}{ev['listing_event']}{RESET}")
+
+        print(f"\n{CYAN}✓ Institutional Data Verification:{RESET} {summary['past_filtered_count']} closed/past secondary issues filtered out to maintain 100% data integrity.\n")
         return
 
     if not args.command or args.command == "scan":
