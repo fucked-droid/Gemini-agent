@@ -127,6 +127,17 @@ class IPOProfile:
     governance: GovernanceAndRisks
     short_term: ShortTermListingMetrics = field(default_factory=ShortTermListingMetrics)
     sme_metrics: Optional[SMERiskMetrics] = None
+    file_name: str = ""
+
+    @property
+    def status(self) -> str:
+        if self.file_name.startswith("sample_"):
+            return "SAMPLE"
+        if self.meta.listing_date and self.meta.listing_date.strip().upper() not in ("", "TBA"):
+            return "READY_TO_LIST"
+        elif "upcoming" in self.meta.open_date.lower() or self.meta.listing_date.strip().upper() == "TBA":
+            return "UPCOMING"
+        return "SAMPLE"
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "IPOProfile":

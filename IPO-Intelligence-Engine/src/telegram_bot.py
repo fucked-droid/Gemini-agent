@@ -5,6 +5,18 @@ import json
 from src.scoring_engine import FundamentalEvaluation
 from src.models.ipo_schema import VerdictTier
 
+try:
+    from dotenv import load_dotenv
+    # Automatically search parent directories for .env
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_env = os.path.abspath(os.path.join(current_dir, "..", "..", ".env"))
+    if os.path.exists(root_env):
+        load_dotenv(root_env)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
+
 
 def format_telegram_ipo_alert(eval_res: FundamentalEvaluation) -> str:
     """Formats an IPO evaluation for short-term listing gain & exit alerts on Telegram."""
@@ -67,13 +79,19 @@ def format_telegram_ipo_alert(eval_res: FundamentalEvaluation) -> str:
 
 def send_telegram_alert(message: str, bot_token: str = None, chat_id: str = None) -> bool:
     """Dispatches Telegram alert to user's Telegram channel or chat."""
-    token = bot_token or os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat = chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+    raw_token = bot_token or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    raw_chat = chat_id or os.environ.get("TELEGRAM_CHAT_ID", "")
+
+    token = raw_token.strip('"\' \t\r\n')
+    chat = raw_chat.strip('"\' \t\r\n')
 
     if not token or not chat:
+        print("[Telegram Bot] Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured.")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
+    
+    # Try sending with Markdown formatting first
     payload = {
         "chat_id": chat,
         "text": message,
@@ -89,6 +107,20 @@ def send_telegram_alert(message: str, bot_token: str = None, chat_id: str = None
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
+    except urllib.error.HTTPError as he:
+        # If markdown formatting parsing failed (HTTP 400), retry with plain text
+        if he.code == 400:
+            try:
+                payload.pop("parse_mode", None)
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    return resp.status == 200
+            except Exception as e2:
+                print(f"[Telegram Bot Plain Retry Error] {e2}")
+                return False
+        print(f"[Telegram Bot HTTP Error] {he}")
+        return False
     except Exception as e:
         print(f"[Telegram Bot Error] {e}")
         return False

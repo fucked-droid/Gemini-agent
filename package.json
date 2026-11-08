@@ -17,6 +17,12 @@
     "scan:chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart",
     "chart": "python Daily-Market-Regime-Engine/scan_nifty.py --chart",
     "ipo:scan": "python IPO-Intelligence-Engine/cli.py scan",
+    "ipo:active": "python IPO-Intelligence-Engine/cli.py scan --active",
+    "ipo:upcoming": "python IPO-Intelligence-Engine/cli.py scan --upcoming",
+    "ipo:listing": "python IPO-Intelligence-Engine/cli.py scan --ready-to-list",
+    "ipo:live": "python IPO-Intelligence-Engine/cli.py live",
+    "ipo:watch": "python IPO-Intelligence-Engine/src/auto_monitor.py",
+    "ipo:telegram": "python IPO-Intelligence-Engine/send_telegram_update.py",
     "ipo:test": "python IPO-Intelligence-Engine/run_all_tests.py"
   },
   "keywords": [],

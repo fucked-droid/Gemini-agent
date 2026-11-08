@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "company_name": "Jio Platforms Limited",
+    "symbol": "JIOPLAT",
+    "sector": "Digital Services, Cloud & Telecommunications",
+    "category": "MAINBOARD",
+    "issue_price": 1119.0,
+    "price_band_low": 1050.0,
+    "price_band_high": 1119.0,
+    "lot_size": 12,
+    "issue_size_crores": 30187.65,
+    "open_date": "2026-10-21",
+    "close_date": "2026-10-23",
+    "listing_date": "2026-10-28"
+  },
+  "short_term_metrics": {
+    "gmp_inr": 250.0,
+    "gmp_trend": "STABLE",
+    "qib_subscription_times": 35.2,
+    "nii_subscription_times": 18.5,
+    "retail_subscription_times": 14.2,
+    "total_subscription_times": 21.36,
+    "anchor_quality": "TOP_TIER",
+    "kostak_rate_inr": 1200.0,
+    "subject_to_sauda_inr": 3200.0
+  },
+  "financials": [
+    {
+      "year_label": "FY24",
+      "revenue_crores": 100120.0,
+      "ebitda_crores": 50250.0,
+      "pat_crores": 20450.0,
+      "net_worth_crores": 220500.0,
+      "total_debt_crores": 45000.0,
+      "cfo_crores": 42100.0,
+      "roce_pct": 14.5,
+      "ronw_pct": 10.5
+    },
+    {
+      "year_label": "FY25",
+      "revenue_crores": 118400.0,
+      "ebitda_crores": 61200.0,
+      "pat_crores": 24800.0,
+      "net_worth_crores": 245300.0,
+      "total_debt_crores": 40200.0,
+      "cfo_crores": 52600.0,
+      "roce_pct": 16.2,
+      "ronw_pct": 11.8
+    },
+    {
+      "year_label": "FY26",
+      "revenue_crores": 138650.0,
+      "ebitda_crores": 73400.0,
+      "pat_crores": 30850.0,
+      "net_worth_crores": 276150.0,
+      "total_debt_crores": 35100.0,
+      "cfo_crores": 65400.0,
+      "roce_pct": 18.5,
+      "ronw_pct": 13.2
+    }
+  ],
+  "issue_structure": {
+    "fresh_issue_crores": 10000.0,
+    "ofs_crores": 20187.65,
+    "promoter_pre_holding_pct": 66.5,
+    "promoter_post_holding_pct": 58.2,
+    "promoter_pledge_pct": 0.0,
+    "objects_of_issue": [
+      "Capital expenditure for 5G network expansion & cloud data centers",
+      "Debt repayment & fortification of balance sheet",
+      "Strategic investments in AI computing infrastructure",
+      "General corporate purposes"
+    ]
+  },
+  "peers": {
+    "peers": [
+      {
+        "name": "Bharti Airtel Limited",
+        "pe_ratio": 64.5,
+        "pb_ratio": 8.5,
+        "roe_pct": 15.2,
+        "ev_ebitda": 12.8
+      },
+      {
+        "name": "Indus Towers Limited",
+        "pe_ratio": 14.2,
+        "pb_ratio": 3.4,
+        "roe_pct": 21.8,
+        "ev_ebitda": 6.8
+      }
+    ],
+    "industry_pe_median": 39.35,
+    "industry_pb_median": 5.95
+  },
+  "governance": {
+    "pending_litigations_crores": 850.0,
+    "contingent_liabilities_crores": 1450.0,
+    "auditor_qualifications": false,
+    "related_party_transactions_high": false,
+    "promoter_legal_disputes": false
+  }
+}

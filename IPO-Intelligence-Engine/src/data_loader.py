@@ -12,7 +12,9 @@ def load_ipo_from_json(file_path: str) -> IPOProfile:
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    return IPOProfile.from_dict(data)
+    profile = IPOProfile.from_dict(data)
+    profile.file_name = os.path.basename(file_path)
+    return profile
 
 
 def load_all_sample_ipos(data_dir: str) -> List[IPOProfile]:

@@ -32,6 +32,9 @@ def format_cli_report(eval_res: FundamentalEvaluation) -> str:
     lines.append(f"{banner_color}{BOLD}     ⚡  SHORT-TERM IPO LISTING GAIN & QUICK PROFIT EXIT REPORT  ⚡{RESET}")
     lines.append(f"{banner_color}{BOLD}================================================================================{RESET}")
     lines.append(f"{BOLD}Company Name    :{RESET} {WHITE}{eval_res.company_name} ({eval_res.symbol}){RESET}")
+    status_label = "🔔 READY TO LIST" if eval_res.status == "READY_TO_LIST" else ("⏳ UPCOMING PIPELINE" if eval_res.status == "UPCOMING" else "🧪 BENCHMARK SAMPLE")
+    date_info = f"Listing Date: {eval_res.listing_date}" if eval_res.listing_date and eval_res.listing_date.upper() != "TBA" else f"Timeline: {eval_res.open_date or 'TBA'}"
+    lines.append(f"{BOLD}Status / Timing :{RESET} {YELLOW}{status_label}{RESET} ({date_info})")
     lines.append(f"{BOLD}Segment/Exchange:{RESET} {CYAN}{eval_res.category}{RESET} | {BOLD}Issue Price:{RESET} ₹{eval_res.issue_price:,.2f}")
     lines.append(f"{BOLD}Lot Size / Cost :{RESET} {eval_res.lot_size} shares (Min Investment: {BOLD}₹{eval_res.lot_cost_inr:,.0f}{RESET})")
     lines.append(f"{banner_color}--------------------------------------------------------------------------------{RESET}")

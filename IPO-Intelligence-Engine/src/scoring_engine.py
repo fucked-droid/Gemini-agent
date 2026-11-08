@@ -31,6 +31,9 @@ class FundamentalEvaluation:
     valuation_res: ValuationAnalysisResult
     governance_res: GovernanceAnalysisResult
     sme_res: SMERiskResult
+    status: str = "SAMPLE"
+    open_date: str = ""
+    listing_date: str = ""
     key_strengths: List[str] = field(default_factory=list)
     key_risks: List[str] = field(default_factory=list)
     suggested_action: str = ""
@@ -154,6 +157,9 @@ def evaluate_ipo(profile: IPOProfile) -> FundamentalEvaluation:
         valuation_res=val_res,
         governance_res=gov_res,
         sme_res=sme_res,
+        status=profile.status,
+        open_date=profile.meta.open_date,
+        listing_date=profile.meta.listing_date,
         key_strengths=all_strengths,
         key_risks=all_risks,
         suggested_action=suggested_action
