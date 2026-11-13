@@ -1,0 +1,17 @@
+{
+  "name": "gemini-standalone-agent",
+  "version": "1.0.0",
+  "description": "Standalone autonomous Gemini coding agent with security sandboxing, streaming, and tool execution.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node cross_platform.test.js",
+    "test:v18": "node --test phase_a.test.js phase_b.test.js search_code.test.js edit_file.test.js",
+    "test:auth": "node auth_test.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.27.0",
+    "dotenv": "^18.0.9"
+  }
+}
