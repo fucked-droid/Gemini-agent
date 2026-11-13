@@ -36,3 +36,12 @@ This workspace operates under an advanced agentic stack combining **GSD Core**, 
   3. **Robustness**: Graceful error handling and meaningful error messages.
   4. **Performance**: Avoid memory leaks, unclosed handles, and inefficient nested loops.
 - Adhere to rules defined in `.coderabbit.yaml`.
+
+---
+
+## 5. Institutional Trading System Mandates (Market Engine Guardrails)
+- **Automated Regression Testing**: Changes to any single module must NEVER break another. All test suites (`run_all_tests.py` and `npm test`) must maintain 100% pass rate before concluding any work.
+- **Live vs Backtest Parity**: The live scanner (`live_scanner.py`, `scan_nifty.py`) and historical backtest/validation engines (`walk_forward.py`, `engine.py`) MUST calculate signals using identical mathematical formulas, thresholds, and indicators. Zero logic drift permitted.
+- **Failure Recovery & Resilience**: All external interfaces must gracefully recover from Yahoo Finance / NSE API failures, network timeouts, stale/frozen data feeds, process crashes, and deduplicate live alert dispatches.
+- **Paper Trading Validation**: Full system execution must support paper trading validation during live market hours (09:15 to 15:30 IST), verifying realistic fills, spread friction, and order flow delta.
+- **Continuous Performance Monitoring**: Persistently monitor system edge over time: mathematical expectancy ($E$), profit factor ($PF$), maximum drawdown ($DD$), volatility slippage drag, and signal confidence calibration ($ECE$ & Brier score).
