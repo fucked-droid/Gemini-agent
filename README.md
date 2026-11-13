@@ -26,19 +26,16 @@ Quant system for Indian indices (NIFTY 50) and sectoral breadth.
 - **Institutional Flows**: Tracks FII/DII cash and derivatives positioning.
 - **Intraday Order Flow (CVD)**: Cumulative Volume Delta and buyer/seller absorption trap detection.
 - **Market Breadth**: Advance/Decline ratio divergence and hollow rally traps.
-- **Interactive Charting**: Auto-generates local HTML charts with support/resistance levels.
+- **Support & Resistance**: Dynamic pivot calculation and multi-timeframe level confirmation.
 - **Telegram Sentinel**: Dispatches morning briefings and market updates.
 
 ### Quick Commands
 ```bash
-# Complete regime scan with news & chart
+# Complete regime scan with news
 npm run scan:all
 
 # Quick Nifty regime report
 npm run scan:nifty
-
-# Generate interactive chart
-npm run chart
 
 # Live intraday scan
 npm run scan:live

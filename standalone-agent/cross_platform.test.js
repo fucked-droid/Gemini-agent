@@ -101,7 +101,7 @@ async function runTests() {
   console.log("Test 7: Subdirectory & Recursive listFiles");
   const rootListing = await listFiles();
   assert.ok(rootListing.includes("package.json"));
-  assert.ok(rootListing.includes("index.js"));
+  assert.ok(rootListing.includes("README.md"));
 
   const recursiveListing = await listFiles("", true);
   assert.ok(recursiveListing.includes("package.json"));
