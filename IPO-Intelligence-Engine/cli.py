@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.data_loader import load_ipo_from_json, load_all_sample_ipos
 from src.scoring_engine import evaluate_ipo
-from src.report_generator import format_cli_report, BOLD, RESET, GREEN, RED, YELLOW, CYAN
+from src.report_generator import format_cli_report, BOLD, RESET, GREEN, RED, YELLOW, CYAN, GRAY
 MAGENTA = "\033[95m"
 WHITE = "\033[97m"
 from src.telegram_bot import format_telegram_ipo_alert, send_telegram_alert
