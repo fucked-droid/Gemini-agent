@@ -53,8 +53,6 @@ def parse_numeric(val: str) -> float:
 def fetch_url(url: str, timeout: int = 15, headers: Optional[Dict[str, str]] = None) -> str:
     """Pure standard library HTTP fetcher."""
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
 
     h = {
         "User-Agent": USER_AGENT,
@@ -74,11 +72,13 @@ def parse_ipo_date(raw: str, default_year: int = 2026) -> Optional[date]:
     if not raw or any(x in raw.lower() for x in ["tba", "soon", "null", "none"]):
         return None
     raw = raw.strip()
-    m = re.match(r"^(\d{1,2})-([A-Za-z]{3})(?:-(\d{2,4}))?$", raw)
-    if m:
-        day = int(m.group(1))
-        mon = MONTHS_MAP.get(m.group(2).lower())
-        yr = int(m.group(3)) if m.group(3) else default_year
+
+    # Day-first pattern: "12-Nov-2026", "12 Nov 2026", "12-Nov", "12 Nov"
+    m_day_first = re.search(r"^(\d{1,2})[-\s/]([A-Za-z]{3})(?:[-\s/](\d{2,4}))?", raw)
+    if m_day_first:
+        day = int(m_day_first.group(1))
+        mon = MONTHS_MAP.get(m_day_first.group(2).lower())
+        yr = int(m_day_first.group(3)) if m_day_first.group(3) else default_year
         if yr < 100:
             yr += 2000
         if mon:
@@ -86,16 +86,21 @@ def parse_ipo_date(raw: str, default_year: int = 2026) -> Optional[date]:
                 return date(yr, mon, day)
             except ValueError:
                 pass
-    m2 = re.search(r"([A-Za-z]{3})\s+(\d{1,2})(?:,?\s+(\d{4}))?", raw)
-    if m2:
-        mon = MONTHS_MAP.get(m2.group(1).lower())
-        day = int(m2.group(2))
-        yr = int(m2.group(3)) if m2.group(3) else default_year
+
+    # Month-first pattern: "Nov 12, 2026", "Nov 12"
+    m_mon_first = re.search(r"^([A-Za-z]{3})[-\s/](\d{1,2})(?:,?[-\s/](\d{2,4}))?", raw)
+    if m_mon_first:
+        mon = MONTHS_MAP.get(m_mon_first.group(1).lower())
+        day = int(m_mon_first.group(2))
+        yr = int(m_mon_first.group(3)) if m_mon_first.group(3) else default_year
+        if yr < 100:
+            yr += 2000
         if mon:
             try:
                 return date(yr, mon, day)
             except ValueError:
                 pass
+
     return None
 
 

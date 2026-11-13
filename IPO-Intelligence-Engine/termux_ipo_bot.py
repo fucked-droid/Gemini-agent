@@ -13,9 +13,16 @@ import json
 import urllib.request
 from datetime import datetime, time as dtime
 
-# Default Telegram Credentials (overridden by environment variables or .env)
-DEFAULT_BOT_TOKEN = "9038449069:AAEHa85qNRUYrpy7GWxlwn14T9AxqKJnWzU"
-DEFAULT_CHAT_ID = "1329803340"
+try:
+    from dotenv import load_dotenv
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_env = os.path.abspath(os.path.join(current_dir, "..", ".env"))
+    if os.path.exists(root_env):
+        load_dotenv(root_env)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
 
 LIVE_GMP_URL = "https://www.investorgain.com/report/live-ipo-gmp/331/"
 EVENT_CALENDAR_URL = "https://www.investorgain.com/report/watch-live-ipo-event-calendar/554/"
@@ -54,11 +61,11 @@ def fetch_url(url: str, timeout: int = 15) -> str:
 
 
 def send_telegram(text: str) -> bool:
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", DEFAULT_BOT_TOKEN).strip('"\' \t\r\n')
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", DEFAULT_CHAT_ID).strip('"\' \t\r\n')
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip('"\' \t\r\n')
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip('"\' \t\r\n')
 
     if not token or not chat_id:
-        print("[Telegram] Error: Missing BOT_TOKEN or CHAT_ID")
+        print("[Telegram] Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured.")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"

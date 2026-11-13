@@ -89,16 +89,11 @@ def send_telegram_alert(message: str, bot_token: str = None, chat_id: str = None
         print("[Telegram Bot] Error: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured.")
         return False
 
-    endpoints = [
-        ("https://api.telegram.org", None),
-        ("https://149.154.167.99", "api.telegram.org"),
-        ("https://149.154.166.120", "api.telegram.org")
-    ]
-    
+    api_base = os.environ.get("TELEGRAM_API_BASE", "https://api.telegram.org").rstrip("/")
+    url = f"{api_base}/bot{token}/sendMessage"
+
     import ssl
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
 
     payload = {
         "chat_id": chat,
@@ -107,18 +102,25 @@ def send_telegram_alert(message: str, bot_token: str = None, chat_id: str = None
         "disable_web_page_preview": True
     }
     data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
 
-    for base_url, host_header in endpoints:
-        url = f"{base_url}/bot{token}/sendMessage"
-        headers = {"Content-Type": "application/json"}
-        if host_header:
-            headers["Host"] = host_header
-
-        req = urllib.request.Request(url, data=data, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=8, context=ctx) as resp:
-                return resp.status == 200
-        except Exception:
-            continue
-
-    return False
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            return resp.status == 200
+    except urllib.error.HTTPError as he:
+        if he.code == 400:
+            # Fallback to plain text if Markdown parsing failed
+            try:
+                payload.pop("parse_mode", None)
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+                with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                    return resp.status == 200
+            except Exception as e2:
+                print(f"[Telegram Bot Plain Retry Error] {e2}")
+                return False
+        print(f"[Telegram Bot HTTP Error] {he}")
+        return False
+    except Exception as e:
+        print(f"[Telegram Bot Error] {e}")
+        return False

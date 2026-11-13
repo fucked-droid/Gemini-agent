@@ -36,18 +36,23 @@ def send_windows_toast(title: str, message: str):
                 pass
         return
 
-    # On Windows: use Windows.UI.Notifications
-    ps_cmd = f"""
+    # On Windows: use Windows.UI.Notifications with parameterized arguments
+    ps_cmd = """
+    param([string]$Title, [string]$Message)
     [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
     $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
     $toastXml = [xml]$template.GetXml()
-    $toastXml.GetElementsByTagName('text')[0].AppendChild($toastXml.CreateTextNode('{clean_title}')) > $null
-    $toastXml.GetElementsByTagName('text')[1].AppendChild($toastXml.CreateTextNode('{clean_msg}')) > $null
+    $toastXml.GetElementsByTagName('text')[0].AppendChild($toastXml.CreateTextNode($Title)) > $null
+    $toastXml.GetElementsByTagName('text')[1].AppendChild($toastXml.CreateTextNode($Message)) > $null
     $toast = [Windows.UI.Notifications.ToastNotification]::new($toastXml)
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('IPO Intelligence Engine').Show($toast)
     """
     try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True, timeout=5)
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd, "-Title", clean_title, "-Message", clean_msg],
+            capture_output=True,
+            timeout=5
+        )
     except Exception as e:
         print(f"[Toast Notification Error] {e}")
 
