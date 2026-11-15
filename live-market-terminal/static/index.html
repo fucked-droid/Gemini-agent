@@ -261,14 +261,14 @@
                                 <span class="intel-pill pill-yellow" id="intel-flow-pill">50.0% BUY</span>
                             </div>
                             <div class="tile-val text-yellow" id="intel-flow-val">Balanced</div>
-                            <div class="tile-subtext" id="intel-flow-sub">CVD: 0 contracts | Tape Balanced</div>
+                            <div class="tile-subtext" id="intel-flow-sub">CVD: -- contracts | Tape Balanced</div>
                         </div>
 
                         <!-- 4. Options Sentiment -->
                         <div class="intel-tile" id="tile-options-sentiment">
                             <div class="tile-header-row">
                                 <span class="tile-label">OPTIONS SENTIMENT</span>
-                                <span class="intel-pill pill-muted" id="intel-options-pill">NO FEED</span>
+                                <span class="intel-pill pill-muted" id="intel-options-pill">UNAVAILABLE</span>
                             </div>
                             <div class="tile-val text-muted" id="intel-options-val">Unavailable</div>
                             <div class="tile-subtext" id="intel-options-sub">Put-Call Ratio & OI Distribution</div>
@@ -545,36 +545,36 @@
                         <div class="options-tile">
                             <span class="opt-label">PUT-CALL RATIO (PCR)</span>
                             <div class="opt-val-row">
-                                <span class="opt-val text-green" id="opt-pcr-oi">0.91</span>
-                                <span class="opt-badge pill-green" id="opt-pcr-sentiment">BULLISH</span>
+                                <span class="opt-val text-muted" id="opt-pcr-oi">--</span>
+                                <span class="opt-badge pill-muted" id="opt-pcr-sentiment">UNAVAILABLE</span>
                             </div>
-                            <div class="opt-sub" id="opt-pcr-vol-sub">Volume PCR: 0.88 • Support Skew</div>
+                            <div class="opt-sub" id="opt-pcr-vol-sub">Volume PCR: -- • Awaiting feed</div>
                         </div>
 
                         <div class="options-tile">
                             <span class="opt-label">CHANGE IN OPEN INTEREST</span>
                             <div class="opt-val-row">
-                                <span class="opt-val text-cyan" id="opt-net-oi-chg">+45,000 PE</span>
-                                <span class="opt-badge pill-cyan" id="opt-oi-bias-pill">PUT BUILDUP</span>
+                                <span class="opt-val text-muted" id="opt-net-oi-chg">--</span>
+                                <span class="opt-badge pill-muted" id="opt-oi-bias-pill">NO FEED</span>
                             </div>
-                            <div class="opt-sub" id="opt-oi-diff-sub">Net PE additions exceed CE additions</div>
+                            <div class="opt-sub" id="opt-oi-diff-sub">Net Open Interest shift unavailable</div>
                         </div>
 
                         <div class="options-tile">
                             <span class="opt-label">CALL / PUT WRITING</span>
                             <div class="opt-val-row">
-                                <span class="opt-val text-yellow" id="opt-writing-sentiment">Put Writing Dominating</span>
+                                <span class="opt-val text-muted" id="opt-writing-sentiment">Unavailable</span>
                             </div>
-                            <div class="opt-sub" id="opt-writing-sub">Institutional Put writers active at ATM</div>
+                            <div class="opt-sub" id="opt-writing-sub">Derivatives feed offline</div>
                         </div>
 
                         <div class="options-tile">
                             <span class="opt-label">MAX PAIN STRIKE</span>
                             <div class="opt-val-row">
-                                <span class="opt-val text-gold" id="opt-max-pain">₹24,500</span>
-                                <span class="opt-badge pill-yellow" id="opt-pain-dist-pill">+40 pts</span>
+                                <span class="opt-val text-muted" id="opt-max-pain">₹--</span>
+                                <span class="opt-badge pill-muted" id="opt-pain-dist-pill">--</span>
                             </div>
-                            <div class="opt-sub" id="opt-max-pain-bias">Expiry gravitational equilibrium zone</div>
+                            <div class="opt-sub" id="opt-max-pain-bias">Max Pain requires live option chain</div>
                         </div>
                     </div>
 
@@ -582,23 +582,23 @@
                     <div class="strike-walls-strip">
                         <div class="wall-box resistance-wall">
                             <span class="wall-title">MAJOR RESISTANCE CEILING (CALL WALL)</span>
-                            <span class="wall-strike text-red" id="opt-res-wall">₹24,800</span>
-                            <span class="wall-meta" id="opt-res-meta">325,000 Call OI (+48,000 today)</span>
+                            <span class="wall-strike text-muted" id="opt-res-wall">₹--</span>
+                            <span class="wall-meta" id="opt-res-meta">-- Call OI</span>
                         </div>
                         <div class="wall-box support-wall">
                             <span class="wall-title">MAJOR SUPPORT FLOOR (PUT FLOOR)</span>
-                            <span class="wall-strike text-green" id="opt-sup-floor">₹24,400</span>
-                            <span class="wall-meta" id="opt-sup-meta">310,000 Put OI (+65,000 today)</span>
+                            <span class="wall-strike text-muted" id="opt-sup-floor">₹--</span>
+                            <span class="wall-meta" id="opt-sup-meta">-- Put OI</span>
                         </div>
                         <div class="wall-box call-writing-box">
                             <span class="wall-title">HEAVIEST CALL WRITING</span>
-                            <span class="wall-strike text-yellow" id="opt-heavy-call">₹24,800</span>
-                            <span class="wall-meta" id="opt-heavy-call-meta">+48,000 CE Added</span>
+                            <span class="wall-strike text-muted" id="opt-heavy-call">₹--</span>
+                            <span class="wall-meta" id="opt-heavy-call-meta">-- CE Added</span>
                         </div>
                         <div class="wall-box put-writing-box">
                             <span class="wall-title">HEAVIEST PUT WRITING</span>
-                            <span class="wall-strike text-cyan" id="opt-heavy-put">₹24,400</span>
-                            <span class="wall-meta" id="opt-heavy-put-meta">+65,000 PE Added</span>
+                            <span class="wall-strike text-muted" id="opt-heavy-put">₹--</span>
+                            <span class="wall-meta" id="opt-heavy-put-meta">-- PE Added</span>
                         </div>
                     </div>
 
@@ -664,7 +664,7 @@
                                 <span class="of-val text-yellow" id="of-aggression-val">1.00x (Balanced)</span>
                                 <span class="of-badge pill-yellow" id="of-divergence-pill">NO DIVERGENCE</span>
                             </div>
-                            <div class="of-sub" id="of-aggression-sub">CVD: -21,322 contracts | Tape Balanced</div>
+                            <div class="of-sub" id="of-aggression-sub">CVD: -- contracts | Tape Balanced</div>
                         </div>
                     </div>
 
@@ -716,41 +716,47 @@
 
                 <!-- TAB 4: PERFORMANCE & RISK ANALYTICS -->
                 <div class="console-tab-pane" id="tab-performance">
+                    <!-- Status Banner / Disclaimer -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">QUANTITATIVE RISK AUDIT & STATISTICAL METRICS</span>
+                        <span class="intel-pill pill-yellow" id="perf-status-badge">DEMO / UNVERIFIED BENCHMARK</span>
+                    </div>
+
                     <!-- 6 Key Performance Metrics -->
                     <div class="perf-metrics-grid">
                         <div class="perf-cell">
                             <span class="perf-label">HISTORICAL SIGNAL ACCURACY</span>
-                            <div class="perf-val text-green" id="perf-accuracy-val">75.0%</div>
-                            <div class="perf-sub" id="perf-accuracy-sub">Evaluated over 120 closed market setups</div>
+                            <div class="perf-val text-green" id="perf-accuracy-val">--%</div>
+                            <div class="perf-sub" id="perf-accuracy-sub">Target 1 favorable movement rate</div>
                         </div>
 
                         <div class="perf-cell">
                             <span class="perf-label">REALIZED WIN RATE</span>
-                            <div class="perf-val text-green" id="perf-winrate-val">75.0%</div>
-                            <div class="perf-sub" id="perf-winrate-sub">Target 1 & Target 2 completion frequency</div>
+                            <div class="perf-val text-green" id="perf-winrate-val">--%</div>
+                            <div class="perf-sub" id="perf-winrate-sub">Completed target setups frequency</div>
                         </div>
 
                         <div class="perf-cell">
                             <span class="perf-label">AVERAGE RISK / REWARD</span>
-                            <div class="perf-val text-cyan" id="perf-rr-val">1:2.40 R</div>
-                            <div class="perf-sub" id="perf-rr-sub">Avg Winner: +2.40 R vs Loss: -1.0 R</div>
+                            <div class="perf-val text-cyan" id="perf-rr-val">1:-- R</div>
+                            <div class="perf-sub" id="perf-rr-sub">Avg Winner vs Avg Loser R-multiple</div>
                         </div>
 
                         <div class="perf-cell">
                             <span class="perf-label">MAXIMUM DRAWDOWN</span>
-                            <div class="perf-val text-red" id="perf-drawdown-val">-4.6% (-485 pts)</div>
+                            <div class="perf-val text-red" id="perf-drawdown-val">--%</div>
                             <div class="perf-sub" id="perf-drawdown-sub">Historical peak-to-trough capital risk</div>
                         </div>
 
                         <div class="perf-cell">
                             <span class="perf-label">FALSE SIGNAL PERCENTAGE</span>
-                            <div class="perf-val text-yellow" id="perf-falserate-val">16.7%</div>
+                            <div class="perf-val text-yellow" id="perf-falserate-val">--%</div>
                             <div class="perf-sub" id="perf-falserate-sub">Whipsaw failure / immediate stop-out rate</div>
                         </div>
 
                         <div class="perf-cell">
                             <span class="perf-label">PROFIT FACTOR & EXPECTANCY</span>
-                            <div class="perf-val text-green" id="perf-pf-val">PF: 6.77 • +1.40 R</div>
+                            <div class="perf-val text-green" id="perf-pf-val">PF: -- • -- R</div>
                             <div class="perf-sub" id="perf-pf-sub">Mathematical expectancy per executed trade</div>
                         </div>
                     </div>
@@ -800,13 +806,13 @@
     <!-- FOOTER STATUS -->
     <footer class="app-footer">
         <div class="footer-left">
-            <span>Provider: <b>DhanHQ Official v2 API</b></span>
+            <span>Provider: <b id="footer-provider-name">DhanHQ Official v2 API</b></span>
             <span>Mode: <b id="footer-feed-mode">OFFLINE / HISTORICAL</b></span>
             <span>Exchange Time: <b id="footer-exchange-time">--:--:--</b></span>
         </div>
         <div class="footer-right">
-            <span>WebSocket Status: <b id="footer-ws-status">Active</b></span>
-            <span>Stream Health: <b class="text-green">100% OK</b></span>
+            <span>WebSocket Status: <b id="footer-ws-status">Connecting...</b></span>
+            <span>Stream Health: <b id="footer-stream-health" class="text-yellow">Checking...</b></span>
         </div>
     </footer>
 

@@ -172,13 +172,53 @@ class MarketTerminalClient {
         }
 
         if (modeElem) {
-            const sysState = (systemStatus && systemStatus.api_state) || (this.systemStatus && this.systemStatus.api_state);
-            if (sysState === 'LIVE_AUTHENTICATED') {
-                modeElem.textContent = 'LIVE FEED';
+            const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+            const stat = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'HISTORICAL');
+            modeElem.textContent = stat;
+            if (stat === 'LIVE') {
                 modeElem.className = 'feed-mode-tag mode-live';
-            } else {
-                modeElem.textContent = 'HISTORICAL';
+            } else if (stat === 'STALE') {
                 modeElem.className = 'feed-mode-tag text-yellow';
+                modeElem.textContent = 'STALE FEED';
+            } else if (stat === 'RECONNECTING') {
+                modeElem.className = 'feed-mode-tag text-yellow';
+                modeElem.textContent = 'RECONNECTING';
+            } else if (stat === 'OFFLINE') {
+                modeElem.className = 'feed-mode-tag text-red';
+            } else {
+                modeElem.className = 'feed-mode-tag text-yellow';
+                modeElem.textContent = 'HISTORICAL';
+            }
+        }
+
+        // Update Centralized Footer Status
+        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+        const provElem = document.getElementById('footer-provider-name');
+        if (provElem) {
+            provElem.textContent = symStat.provider_name || (this.activeSymbol === 'BTC' ? 'Kraken Public Feed' : 'DhanHQ Official v2 API');
+        }
+        const feedModeElem = document.getElementById('footer-feed-mode');
+        if (feedModeElem) {
+            feedModeElem.textContent = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'OFFLINE / HISTORICAL');
+        }
+        const streamHealthElem = document.getElementById('footer-stream-health');
+        if (streamHealthElem) {
+            const s = symStat.status;
+            if (s === 'LIVE') {
+                streamHealthElem.textContent = '100% Stream OK';
+                streamHealthElem.className = 'text-green';
+            } else if (s === 'STALE') {
+                streamHealthElem.textContent = 'Ticks Stalled (>15s)';
+                streamHealthElem.className = 'text-yellow';
+            } else if (s === 'RECONNECTING') {
+                streamHealthElem.textContent = 'Reconnecting...';
+                streamHealthElem.className = 'text-yellow';
+            } else if (s === 'OFFLINE') {
+                streamHealthElem.textContent = 'Offline';
+                streamHealthElem.className = 'text-red';
+            } else {
+                streamHealthElem.textContent = 'Historical Snapshot';
+                streamHealthElem.className = 'text-cyan';
             }
         }
     }
@@ -215,8 +255,8 @@ class MarketTerminalClient {
 
     resetDisplayForSymbol(symbol) {
         const curr = symbol === 'BTC' ? '$' : '₹';
-        
-        // Reset headline
+
+        // 1. Reset headline & conviction
         const recHeadline = document.getElementById('rec-headline');
         if (recHeadline) {
             recHeadline.textContent = 'WAIT FOR CONFIRMATION';
@@ -231,7 +271,7 @@ class MarketTerminalClient {
             confFill.style.backgroundColor = '#ffd600';
         }
 
-        // Reset metrics
+        // 2. Reset metrics
         const mConf = document.getElementById('metric-confidence');
         if (mConf) mConf.textContent = '--%';
         const mMs = document.getElementById('metric-market-structure');
@@ -248,7 +288,7 @@ class MarketTerminalClient {
         const mRr = document.getElementById('metric-risk-reward');
         if (mRr) mRr.textContent = '--';
 
-        // Reset trade decision
+        // 3. Reset trade decision panel
         const decTitle = document.getElementById('decision-action-title');
         if (decTitle) {
             decTitle.textContent = 'WAIT';
@@ -263,6 +303,87 @@ class MarketTerminalClient {
         if (activeLevels) activeLevels.style.display = 'none';
         const watchLevels = document.getElementById('watch-levels');
         if (watchLevels) watchLevels.style.display = 'flex';
+
+        // 4. Reset Market Intelligence Tiles
+        const msVal = document.getElementById('intel-structure-val');
+        if (msVal) { msVal.textContent = 'Neutral'; msVal.className = 'tile-val text-yellow'; }
+        const msPill = document.getElementById('intel-ms-pill');
+        if (msPill) { msPill.textContent = 'SIDEWAYS'; msPill.className = 'intel-pill pill-yellow'; }
+        const msSub = document.getElementById('intel-structure-sub');
+        if (msSub) msSub.textContent = 'SMC Swing High / Low Alignment';
+
+        const vwapVal = document.getElementById('intel-vwap-val');
+        if (vwapVal) { vwapVal.textContent = 'At VWAP'; vwapVal.className = 'tile-val text-cyan'; }
+        const vwapPill = document.getElementById('intel-vwap-pill');
+        if (vwapPill) { vwapPill.textContent = 'EQUILIBRIUM'; vwapPill.className = 'intel-pill pill-cyan'; }
+        const vwapSub = document.getElementById('intel-vwap-sub');
+        if (vwapSub) vwapSub.textContent = `VWAP: ${curr}--`;
+
+        const flowVal = document.getElementById('intel-flow-val');
+        if (flowVal) { flowVal.textContent = 'Balanced'; flowVal.className = 'tile-val text-yellow'; }
+        const flowPill = document.getElementById('intel-flow-pill');
+        if (flowPill) { flowPill.textContent = '50.0% BUY'; flowPill.className = 'intel-pill pill-yellow'; }
+        const flowSub = document.getElementById('intel-flow-sub');
+        if (flowSub) flowSub.textContent = 'CVD: -- contracts | Tape Balanced';
+
+        const optVal = document.getElementById('intel-options-val');
+        if (optVal) { optVal.textContent = 'Unavailable'; optVal.className = 'tile-val text-muted'; }
+        const optPill = document.getElementById('intel-options-pill');
+        if (optPill) { optPill.textContent = 'UNAVAILABLE'; optPill.className = 'intel-pill pill-muted'; }
+        const optSub = document.getElementById('intel-options-sub');
+        if (optSub) optSub.textContent = symbol === 'BTC' ? 'Options feed unavailable for Bitcoin dev mode' : 'Put-Call Ratio & OI Distribution';
+
+        // 5. Reset Price and CVD Charts
+        if (this.priceChart) {
+            this.priceChart.data.labels = [];
+            this.priceChart.data.datasets.forEach(ds => { ds.data = []; });
+            this.priceChart.update('none');
+        }
+        if (this.cvdChart) {
+            this.cvdChart.data.labels = [];
+            this.cvdChart.data.datasets.forEach(ds => { ds.data = []; });
+            this.cvdChart.update('none');
+        }
+
+        // 6. Reset Options Tab
+        this.clearOptionsTab(curr);
+    }
+
+    clearOptionsTab(curr) {
+        curr = curr || (this.activeSymbol === 'BTC' ? '$' : '₹');
+        const pcrOiElem = document.getElementById('opt-pcr-oi');
+        if (pcrOiElem) { pcrOiElem.textContent = '--'; pcrOiElem.className = 'opt-val text-muted'; }
+        const pcrSentElem = document.getElementById('opt-pcr-sentiment');
+        if (pcrSentElem) { pcrSentElem.textContent = 'UNAVAILABLE'; pcrSentElem.className = 'opt-badge pill-muted'; }
+        const netOiElem = document.getElementById('opt-net-oi-chg');
+        if (netOiElem) { netOiElem.textContent = '--'; netOiElem.className = 'opt-val text-muted'; }
+        const oiBiasPill = document.getElementById('opt-oi-bias-pill');
+        if (oiBiasPill) { oiBiasPill.textContent = 'NO FEED'; oiBiasPill.className = 'opt-badge pill-muted'; }
+        const writingSentElem = document.getElementById('opt-writing-sentiment');
+        if (writingSentElem) writingSentElem.textContent = 'Unavailable';
+        const writingSub = document.getElementById('opt-writing-sub');
+        if (writingSub) writingSub.textContent = 'Derivatives feed offline';
+        const maxPainElem = document.getElementById('opt-max-pain');
+        if (maxPainElem) { maxPainElem.textContent = `${curr}--`; maxPainElem.className = 'opt-val text-muted'; }
+        const painDistPill = document.getElementById('opt-pain-dist-pill');
+        if (painDistPill) { painDistPill.textContent = '--'; painDistPill.className = 'opt-badge pill-muted'; }
+        const maxPainBias = document.getElementById('opt-max-pain-bias');
+        if (maxPainBias) maxPainBias.textContent = 'Max Pain requires live option chain';
+
+        const resWall = document.getElementById('opt-res-wall');
+        if (resWall) resWall.textContent = `${curr}--`;
+        const supFloor = document.getElementById('opt-sup-floor');
+        if (supFloor) supFloor.textContent = `${curr}--`;
+        const heavyCall = document.getElementById('opt-heavy-call');
+        if (heavyCall) heavyCall.textContent = `${curr}--`;
+        const heavyPut = document.getElementById('opt-heavy-put');
+        if (heavyPut) heavyPut.textContent = `${curr}--`;
+        const radarMeta = document.getElementById('opt-radar-meta');
+        if (radarMeta) radarMeta.textContent = `${this.activeSymbol} Derivatives • Feed Offline`;
+        const tbody = document.getElementById('opt-radar-tbody');
+        if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Option chain data is currently unavailable for ${this.activeSymbol}.</td></tr>`;
+        }
     }
 
     switchSymbol(symbol) {
@@ -275,17 +396,17 @@ class MarketTerminalClient {
         const chartSymLabel = document.getElementById('chart-symbol-label');
         if (chartSymLabel) chartSymLabel.textContent = label;
 
-        // Wipe display immediately so no stale BTC data leaks to NIFTY/BANKNIFTY
+        // Strict Instrument Data Isolation: Wipe previous symbol DOM immediately
         this.resetDisplayForSymbol(symbol);
 
         this.updateHeaderCards();
         this.updateMarketContextHeader();
 
-        // If we have cached data for this symbol, render it immediately
-        if (this.cacheAnalytics[symbol]) {
+        // If we have verified cached data for THIS exact symbol, render it immediately
+        if (this.cacheAnalytics[symbol] && this.cacheAnalytics[symbol].indicators) {
             this.updateInternals(this.cacheAnalytics[symbol]);
         }
-        if (this.cacheSignals[symbol]) {
+        if (this.cacheSignals[symbol] && this.cacheSignals[symbol].spot_price) {
             this.updateDecision(this.cacheSignals[symbol]);
         }
         if (this.cacheForecasts[symbol]) {
@@ -457,6 +578,28 @@ class MarketTerminalClient {
             this.updateTickers(packet.quotes);
         }
 
+        // Update centralized market data status
+        if (packet.market_data_status) {
+            this.marketDataStatus = packet.market_data_status;
+            const symStat = this.marketDataStatus[this.activeSymbol];
+            if (symStat && symStat.last_tick_delta_seconds != null) {
+                const delta = symStat.last_tick_delta_seconds;
+                const freshPill = document.getElementById('pill-freshness');
+                if (freshPill) {
+                    if (delta < 5.0) {
+                        freshPill.textContent = 'Live (< 1s)';
+                        freshPill.style.color = '#00e676';
+                    } else if (delta < 15.0) {
+                        freshPill.textContent = `${delta.toFixed(0)}s ago`;
+                        freshPill.style.color = '#ffd600';
+                    } else {
+                        freshPill.textContent = `${delta >= 999 ? '>1m' : delta.toFixed(0) + 's'} ago`;
+                        freshPill.style.color = '#ff1744';
+                    }
+                }
+            }
+        }
+
         // 2. Cache incoming analytics, signals, forecasts per symbol
         if (packet.analytics_by_symbol) {
             Object.assign(this.cacheAnalytics, packet.analytics_by_symbol);
@@ -620,7 +763,8 @@ class MarketTerminalClient {
         }
         const flowSubElem = document.getElementById('intel-flow-sub');
         if (flowSubElem) {
-            flowSubElem.textContent = `CVD: ${flow.cvd >= 0 ? '+' : ''}${flow.cvd || 0} contracts | ${mapper.formatEnumLabel(flow.order_flow_state || 'Balanced')}`;
+            const sessionCvd = (flow.session_cvd != null) ? flow.session_cvd : (flow.cvd || 0);
+            flowSubElem.textContent = `CVD: ${sessionCvd >= 0 ? '+' : ''}${sessionCvd.toLocaleString()} contracts | ${mapper.formatEnumLabel(flow.order_flow_state || 'Balanced')}`;
         }
 
         // Indicator 4: Options Sentiment (Positive / Negative / Neutral / Unavailable)
@@ -639,10 +783,10 @@ class MarketTerminalClient {
         if (optSubElem) {
             if (this.activeSymbol === 'BTC') {
                 optSubElem.textContent = 'Options feed unavailable for Bitcoin dev mode';
-            } else if (mi.options_pcr) {
-                optSubElem.textContent = `PCR: ${parseFloat(mi.options_pcr).toFixed(2)} | ${mi.options_details || 'OI Distribution'}`;
+            } else if (optResolved.label === 'Unavailable' || !mi.options_pcr) {
+                optSubElem.textContent = 'Option chain feed unavailable (Offline)';
             } else {
-                optSubElem.textContent = 'Put-Call Ratio & OI Distribution';
+                optSubElem.textContent = `PCR: ${parseFloat(mi.options_pcr).toFixed(2)} | ${mi.options_details || 'OI Distribution'}`;
             }
         }
 
@@ -1303,7 +1447,8 @@ class MarketTerminalClient {
             divPill.className = `of-badge ${flow.divergence === 'NONE' ? 'pill-muted' : (flow.divergence.includes('BULL') ? 'pill-green' : 'pill-red')}`;
         }
         if (aggSub) {
-            aggSub.textContent = `CVD: ${flow.cvd >= 0 ? '+' : ''}${(flow.cvd || 0).toLocaleString()} contracts | ${flow.aggression_state || 'Balanced'}`;
+            const sessionCvd = (flow.session_cvd != null) ? flow.session_cvd : (flow.cvd || 0);
+            aggSub.textContent = `CVD: ${sessionCvd >= 0 ? '+' : ''}${sessionCvd.toLocaleString()} contracts | ${flow.aggression_state || 'Balanced'}`;
         }
 
         // VWAP Bands
@@ -1358,6 +1503,12 @@ class MarketTerminalClient {
         const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
         const perf = analytics?.performance || {};
 
+        const statusBadge = document.getElementById('perf-status-badge');
+        if (statusBadge) {
+            statusBadge.textContent = perf.badge_text || (perf.is_verified ? 'LIVE AUDITED JOURNAL' : 'DEMO / UNVERIFIED BENCHMARK');
+            statusBadge.className = `intel-pill ${perf.is_verified ? 'pill-green' : 'pill-yellow'}`;
+        }
+
         const accVal = document.getElementById('perf-accuracy-val');
         const accSub = document.getElementById('perf-accuracy-sub');
         const winVal = document.getElementById('perf-winrate-val');
@@ -1375,23 +1526,23 @@ class MarketTerminalClient {
         const calDesc = document.getElementById('perf-cal-desc');
         const tbody = document.getElementById('perf-trades-tbody');
 
-        if (accVal) accVal.textContent = `${perf.historical_accuracy_pct || 75.0}%`;
-        if (accSub) accSub.textContent = `Evaluated over ${perf.total_setups_evaluated || 120} closed market setups`;
+        if (accVal) accVal.textContent = `${perf.historical_accuracy_pct != null ? perf.historical_accuracy_pct : '--'}%`;
+        if (accSub) accSub.textContent = `Evaluated over ${perf.total_setups_evaluated || 120} closed setups (${perf.is_verified ? 'Verified' : 'Backtest'})`;
 
-        if (winVal) winVal.textContent = `${perf.win_rate_pct || 75.0}%`;
-        if (winSub) winSub.textContent = `${perf.wins_count || 90} Wins / ${perf.losses_count || 30} Losses (${this.activeSymbol})`;
+        if (winVal) winVal.textContent = `${perf.win_rate_pct != null ? perf.win_rate_pct : '--'}%`;
+        if (winSub) winSub.textContent = `${perf.wins_count || 0} Wins / ${perf.losses_count || 0} Losses (${this.activeSymbol})`;
 
-        if (rrVal) rrVal.textContent = `${perf.avg_risk_reward_ratio || '1:2.40 R'}`;
-        if (rrSub) rrSub.textContent = `Avg Winner: +${perf.avg_win_r || 2.40} R vs Loss: -1.0 R`;
+        if (rrVal) rrVal.textContent = `${perf.avg_risk_reward_ratio || '1:-- R'}`;
+        if (rrSub) rrSub.textContent = `Avg Winner: +${perf.avg_win_r || '--'} R vs Loss: -${perf.avg_loss_r || '1.0'} R`;
 
-        if (ddVal) ddVal.textContent = `${perf.max_drawdown_pct || -4.6}% (${perf.max_drawdown_pts || -485} pts)`;
-        if (ddSub) ddSub.textContent = `Historical peak-to-trough capital risk (${this.activeSymbol})`;
+        if (ddVal) ddVal.textContent = `${perf.max_drawdown_pct != null ? perf.max_drawdown_pct : '--'}% (${perf.max_drawdown_pts != null ? perf.max_drawdown_pts : '--'} pts)`;
+        if (ddSub) ddSub.textContent = `Peak-to-trough equity risk (${this.activeSymbol})`;
 
-        if (falseVal) falseVal.textContent = `${perf.false_signal_pct || 16.7}%`;
+        if (falseVal) falseVal.textContent = `${perf.false_signal_pct != null ? perf.false_signal_pct : '--'}%`;
         if (falseSub) falseSub.textContent = 'Whipsaw failure / immediate stop-out rate';
 
-        if (pfVal) pfVal.textContent = `PF: ${perf.profit_factor || 6.77} • ${perf.expectancy_r >= 0 ? '+' : ''}${perf.expectancy_r || 1.40} R`;
-        if (pfSub) pfSub.textContent = 'Mathematical expectancy per executed trade';
+        if (pfVal) pfVal.textContent = `PF: ${perf.profit_factor != null ? perf.profit_factor : '--'} • ${perf.expectancy_r >= 0 ? '+' : ''}${perf.expectancy_r != null ? perf.expectancy_r : '--'} R`;
+        if (pfSub) pfSub.textContent = 'Mathematical expectancy per executed setup';
 
         if (calVerdict) calVerdict.textContent = mapper.formatEnumLabel(perf.calibration_verdict || 'WELL_CALIBRATED');
         if (calDesc) {

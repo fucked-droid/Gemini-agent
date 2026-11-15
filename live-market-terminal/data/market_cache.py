@@ -16,6 +16,7 @@ from config import (
     MARKET_STATE_SNAPSHOT_FILE,
     DEFAULT_REFRESH_INTERVAL_SECONDS,
 )
+from .market_status_manager import get_market_status_manager
 
 logger = logging.getLogger("MarketCache")
 
@@ -67,8 +68,11 @@ class MarketCache:
     def update_quote(self, symbol: str, quote: Dict[str, Any]):
         """Updates quote for an instrument."""
         with self.lock:
-            self.quotes[symbol.upper()] = quote
+            sym_upper = symbol.upper()
+            self.quotes[sym_upper] = quote
             self.system_status["last_refresh_timestamp"] = time.time()
+            if quote.get("is_live", False):
+                get_market_status_manager().record_tick(sym_upper)
 
     def update_tick(self, security_id: str, ltp: float, volume: int = 0):
         """Processes live WebSocket tick."""
@@ -82,6 +86,7 @@ class MarketCache:
                     q["volume"] = volume or q.get("volume", 0)
                     q["is_live"] = True
                     q["last_tick_time"] = time.time()
+                    get_market_status_manager().record_tick(sym)
                     break
 
     def set_candles(self, symbol: str, tf_suite: Dict[str, pd.DataFrame]):

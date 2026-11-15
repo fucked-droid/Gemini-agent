@@ -2,17 +2,25 @@
 Options Sentiment & Derivatives Analytics Engine.
 Calculates Put-Call Ratio (PCR), Open Interest shifts, Max Pain, Option Writing intensity,
 and Key Option Strike Walls for NIFTY and BANKNIFTY.
-Gracefully returns 'Unavailable' when data is not available (e.g. for Crypto/BTC).
+
+Strict Institutional Mandates:
+- One authoritative options data source with strict timestamp and freshness validation.
+- Expiry-specific calculations (evaluates nearest active expiry series).
+- Correct strike mapping without cross-instrument fabrication (no scaling NIFTY to BANKNIFTY).
+- Strict degradation: If the live options feed is unavailable, all dependent components
+  must display UNAVAILABLE (never retain stale option-chain values as live data).
 """
 
 import json
 import logging
+import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 logger = logging.getLogger("OptionsAnalytics")
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class OptionsAnalytics:
     """
@@ -20,7 +28,12 @@ class OptionsAnalytics:
     """
 
     @classmethod
-    def get_options_intelligence(cls, symbol: str = "NIFTY", spot_price: float = 0.0) -> Dict[str, Any]:
+    def get_options_intelligence(
+        cls,
+        symbol: str = "NIFTY",
+        spot_price: float = 0.0,
+        allow_sample: bool = False,
+    ) -> Dict[str, Any]:
         """
         Deep institutional options analysis covering:
         1. PCR (Open Interest & Volume)
@@ -30,122 +43,80 @@ class OptionsAnalytics:
         5. Important Option Strikes (Resistance Wall, Support Floor, Heaviest Writing Strikes, Radar Table)
         """
         sym = symbol.upper()
-        # Crypto or non-derivatives instruments
-        if sym in ["BTC", "BITCOIN"]:
-            return {
-                "sentiment": "Unavailable",
-                "status": "NO_CRYPTO_OPTIONS",
-                "symbol": sym,
-                "spot_price": spot_price,
-                "pcr_oi": None,
-                "pcr_volume": None,
-                "net_ce_oi_change": 0,
-                "net_pe_oi_change": 0,
-                "call_writing_contracts": 0,
-                "put_writing_contracts": 0,
-                "writing_sentiment": "Unavailable",
-                "writing_intensity": "N/A",
-                "max_pain": None,
-                "max_pain_distance": 0.0,
-                "max_pain_bias": "N/A",
-                "major_resistance_strike": None,
-                "major_resistance_oi": 0,
-                "major_support_strike": None,
-                "major_support_oi": 0,
-                "heaviest_call_writing_strike": None,
-                "heaviest_call_writing_chg": 0,
-                "heaviest_put_writing_strike": None,
-                "heaviest_put_writing_chg": 0,
-                "key_strikes": [],
-                "details": "Crypto instruments do not trade on NSE Option Chain.",
-                "color_class": "text-muted",
-            }
 
-        opt_files = [
-            WORKSPACE_ROOT / "Daily-Market-Regime-Engine" / "data" / "sample_option_chain.json",
-            WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache" / "option_chain.json",
-        ]
+        # 1. Crypto or non-derivatives instruments
+        if sym in ["BTC", "BITCOIN", "BTCUSD"]:
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="NO_CRYPTO_OPTIONS",
+                details="Crypto instruments do not trade on NSE Option Chain.",
+            )
 
-        raw_data: Optional[Dict[str, Any]] = None
-        for f in opt_files:
-            if f.exists():
-                try:
-                    with open(f, "r", encoding="utf-8") as fp:
-                        raw_data = json.load(fp)
-                    if raw_data:
-                        break
-                except Exception as e:
-                    logger.debug(f"Failed to read option chain file {f}: {e}")
+        # 2. Check Provider Connection and Freshness
+        from data.market_status_manager import get_market_status_manager
+        status_mgr = get_market_status_manager()
+        is_provider_live = status_mgr.provider_connected and status_mgr.is_session_active(sym)
+
+        # 3. Resolve authoritative option chain data
+        raw_data, source_type = cls._load_option_chain_data(sym)
 
         if not raw_data:
-            return {
-                "sentiment": "Unavailable",
-                "status": "DATA_UNAVAILABLE",
-                "symbol": sym,
-                "spot_price": spot_price,
-                "pcr_oi": None,
-                "pcr_volume": None,
-                "net_ce_oi_change": 0,
-                "net_pe_oi_change": 0,
-                "call_writing_contracts": 0,
-                "put_writing_contracts": 0,
-                "writing_sentiment": "Unavailable",
-                "writing_intensity": "N/A",
-                "max_pain": None,
-                "max_pain_distance": 0.0,
-                "max_pain_bias": "N/A",
-                "major_resistance_strike": None,
-                "major_resistance_oi": 0,
-                "major_support_strike": None,
-                "major_support_oi": 0,
-                "heaviest_call_writing_strike": None,
-                "heaviest_call_writing_chg": 0,
-                "heaviest_put_writing_strike": None,
-                "heaviest_put_writing_chg": 0,
-                "key_strikes": [],
-                "details": "Live Option Chain feed currently unavailable.",
-                "color_class": "text-muted",
-            }
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="UNAVAILABLE",
+                details=f"Live option chain feed for {sym} is unavailable (Provider offline).",
+            )
+
+        # Check timestamp freshness
+        records = raw_data.get("records", {})
+        data_timestamp_str = records.get("timestamp", "")
+        underlying = float(records.get("underlyingValue", 0.0) or 0.0)
+
+        # Validate that the chain actually belongs to the requested instrument
+        # If the file contains NIFTY data (underlying ~24000-26000), do NOT use it for BANKNIFTY (spot ~50000+)!
+        if sym == "BANKNIFTY" and underlying > 0 and underlying < 35000.0:
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="UNAVAILABLE",
+                details="BANKNIFTY live option chain feed unavailable. Instrument data isolation enforced.",
+            )
+        elif sym == "NIFTY" and underlying > 35000.0:
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="UNAVAILABLE",
+                details="NIFTY live option chain feed unavailable. Instrument data isolation enforced.",
+            )
+
+        # Check freshness of cached file
+        is_fresh = cls._check_data_freshness(data_timestamp_str)
+        if not is_fresh and not is_provider_live and not allow_sample:
+            # Mandate: If feed is unavailable/stale, dependent components must display UNAVAILABLE
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="UNAVAILABLE",
+                details=f"Option chain feed is stale ({data_timestamp_str or 'No timestamp'}). Live NSE provider not connected.",
+            )
 
         try:
-            records = raw_data.get("records", {})
             rows = records.get("data", [])
             if not rows:
-                return {
-                    "sentiment": "Unavailable",
-                    "status": "EMPTY_CHAIN",
-                    "symbol": sym,
-                    "spot_price": spot_price,
-                    "pcr_oi": None,
-                    "pcr_volume": None,
-                    "net_ce_oi_change": 0,
-                    "net_pe_oi_change": 0,
-                    "call_writing_contracts": 0,
-                    "put_writing_contracts": 0,
-                    "writing_sentiment": "Unavailable",
-                    "writing_intensity": "N/A",
-                    "max_pain": None,
-                    "max_pain_distance": 0.0,
-                    "max_pain_bias": "N/A",
-                    "major_resistance_strike": None,
-                    "major_resistance_oi": 0,
-                    "major_support_strike": None,
-                    "major_support_oi": 0,
-                    "heaviest_call_writing_strike": None,
-                    "heaviest_call_writing_chg": 0,
-                    "heaviest_put_writing_strike": None,
-                    "heaviest_put_writing_chg": 0,
-                    "key_strikes": [],
-                    "details": "Empty option chain records.",
-                    "color_class": "text-muted",
-                }
+                return cls._get_unavailable_payload(
+                    symbol=sym,
+                    spot_price=spot_price,
+                    status="UNAVAILABLE",
+                    details=f"Empty option chain records for {sym}.",
+                )
 
-            underlying = float(records.get("underlyingValue", 0.0) or 0.0)
-            current_spot = spot_price if spot_price > 0 else (underlying if underlying > 0 else 24500.0)
+            current_spot = spot_price if spot_price > 0 else (underlying if underlying > 0 else 25000.0)
 
-            # Check if instrument is BANKNIFTY or has spot in BankNifty range (>35,000)
-            is_banknifty = (sym == "BANKNIFTY" or current_spot > 35000.0)
-            strike_multiplier = (current_spot / underlying) if (is_banknifty and underlying > 0) else 1.0
+            # Expiry-specific calculations: Extract nearest active expiry
+            expiry_dates = records.get("expiryDates", [])
+            active_expiry = expiry_dates[0] if expiry_dates else None
 
             parsed_strikes: List[Dict[str, Any]] = []
             tot_ce_oi = 0
@@ -155,15 +126,18 @@ class OptionsAnalytics:
             tot_ce_chg = 0
             tot_pe_chg = 0
 
+            # Reasonable strike boundary around spot to eliminate extreme illiquid strikes
+            max_strike_dist = current_spot * 0.08  # ±8% band around spot
+
             for r in rows:
                 raw_strike = float(r.get("strikePrice", 0) or 0)
-                if raw_strike <= 0:
+                if raw_strike <= 0 or abs(raw_strike - current_spot) > max_strike_dist:
                     continue
 
-                if is_banknifty and strike_multiplier != 1.0:
-                    effective_strike = round((raw_strike * strike_multiplier) / 100.0) * 100.0
-                else:
-                    effective_strike = raw_strike
+                # Filter by nearest expiry if present on the row
+                row_expiry = r.get("expiryDate")
+                if active_expiry and row_expiry and row_expiry != active_expiry:
+                    continue
 
                 ce = r.get("CE", {}) if isinstance(r.get("CE"), dict) else {}
                 pe = r.get("PE", {}) if isinstance(r.get("PE"), dict) else {}
@@ -185,7 +159,7 @@ class OptionsAnalytics:
                 tot_pe_chg += pe_chg
 
                 parsed_strikes.append({
-                    "strike": effective_strike,
+                    "strike": raw_strike,
                     "ce_oi": ce_oi,
                     "pe_oi": pe_oi,
                     "ce_vol": ce_vol,
@@ -195,6 +169,14 @@ class OptionsAnalytics:
                     "ce_ltp": ce_ltp,
                     "pe_ltp": pe_ltp,
                 })
+
+            if not parsed_strikes:
+                return cls._get_unavailable_payload(
+                    symbol=sym,
+                    spot_price=spot_price,
+                    status="UNAVAILABLE",
+                    details=f"No active option strikes found for {sym} expiry {active_expiry}.",
+                )
 
             parsed_strikes.sort(key=lambda x: x["strike"])
 
@@ -217,7 +199,6 @@ class OptionsAnalytics:
                 writing_intensity = "Neutral Delta Skew"
 
             # 3. Max Pain Calculation
-            # Formula: For each test strike K, total seller payout = sum(CE_OI * max(0, K - S) + PE_OI * max(0, S - K))
             all_strike_prices = [p["strike"] for p in parsed_strikes]
             min_loss = float("inf")
             max_pain_strike = all_strike_prices[0] if all_strike_prices else current_spot
@@ -226,10 +207,8 @@ class OptionsAnalytics:
                 total_loss = 0.0
                 for item in parsed_strikes:
                     s = item["strike"]
-                    # Calls are ITM when test_strike > s
                     if test_strike > s:
                         total_loss += (test_strike - s) * item["ce_oi"]
-                    # Puts are ITM when test_strike < s
                     elif test_strike < s:
                         total_loss += (s - test_strike) * item["pe_oi"]
 
@@ -243,25 +222,21 @@ class OptionsAnalytics:
             elif max_pain_dist < -50:
                 max_pain_bias = f"Spot ₹{current_spot:,.0f} < Max Pain ₹{max_pain_strike:,.0f} ({max_pain_dist:,.0f} pts): Bullish pull toward expiry strike"
             else:
-                max_pain_bias = f"Spot ₹{current_spot:,.0f} tightly pegged to Max Pain ₹{max_pain_strike:,.0f}: Expiry pinning equilibrium"
+                max_pain_bias = f"Spot ₹{current_spot:,.0f} pegged to Max Pain ₹{max_pain_strike:,.0f}: Expiry pinning equilibrium"
 
             # 4. Important Option Strikes
-            # Major Resistance Wall (highest CE OI)
             highest_ce_row = max(parsed_strikes, key=lambda x: x["ce_oi"]) if parsed_strikes else None
             major_res_strike = highest_ce_row["strike"] if highest_ce_row else round(current_spot + 300)
             major_res_oi = highest_ce_row["ce_oi"] if highest_ce_row else 0
 
-            # Major Support Floor (highest PE OI)
             highest_pe_row = max(parsed_strikes, key=lambda x: x["pe_oi"]) if parsed_strikes else None
             major_sup_strike = highest_pe_row["strike"] if highest_pe_row else round(current_spot - 300)
             major_sup_oi = highest_pe_row["pe_oi"] if highest_pe_row else 0
 
-            # Heaviest Call Writing Strike (highest positive CE change)
             heaviest_ce_writing_row = max(parsed_strikes, key=lambda x: x["ce_chg"]) if parsed_strikes else None
             heaviest_call_strike = heaviest_ce_writing_row["strike"] if heaviest_ce_writing_row else major_res_strike
             heaviest_call_chg = heaviest_ce_writing_row["ce_chg"] if heaviest_ce_writing_row else 0
 
-            # Heaviest Put Writing Strike (highest positive PE change)
             heaviest_pe_writing_row = max(parsed_strikes, key=lambda x: x["pe_chg"]) if parsed_strikes else None
             heaviest_put_strike = heaviest_pe_writing_row["strike"] if heaviest_pe_writing_row else major_sup_strike
             heaviest_put_chg = heaviest_pe_writing_row["pe_chg"] if heaviest_pe_writing_row else 0
@@ -326,11 +301,15 @@ class OptionsAnalytics:
                 color_class = "text-yellow"
                 details = f"Balanced PCR ({pcr_oi:.2f}) with equal Open Interest distribution."
 
+            data_mode = "LIVE" if is_provider_live else "HISTORICAL_SAMPLE"
+
             return {
                 "sentiment": sentiment,
-                "status": "CALCULATED",
+                "status": "CALCULATED" if is_provider_live else "OFFLINE_SAMPLE",
+                "data_mode": data_mode,
                 "symbol": sym,
                 "spot_price": current_spot,
+                "expiry": active_expiry,
                 "pcr_oi": pcr_oi,
                 "pcr_volume": pcr_vol,
                 "net_ce_oi_change": tot_ce_chg,
@@ -354,38 +333,95 @@ class OptionsAnalytics:
                 "score": score,
                 "details": details,
                 "color_class": color_class,
+                "data_timestamp": data_timestamp_str,
             }
 
         except Exception as e:
             logger.warning(f"Error computing options intelligence: {e}")
-            return {
-                "sentiment": "Unavailable",
-                "status": "COMPUTATION_ERROR",
-                "symbol": sym,
-                "spot_price": spot_price,
-                "pcr_oi": None,
-                "pcr_volume": None,
-                "net_ce_oi_change": 0,
-                "net_pe_oi_change": 0,
-                "call_writing_contracts": 0,
-                "put_writing_contracts": 0,
-                "writing_sentiment": "Unavailable",
-                "writing_intensity": "N/A",
-                "max_pain": None,
-                "max_pain_distance": 0.0,
-                "max_pain_bias": "N/A",
-                "major_resistance_strike": None,
-                "major_resistance_oi": 0,
-                "major_support_strike": None,
-                "major_support_oi": 0,
-                "heaviest_call_writing_strike": None,
-                "heaviest_call_writing_chg": 0,
-                "heaviest_put_writing_strike": None,
-                "heaviest_put_writing_chg": 0,
-                "key_strikes": [],
-                "details": "Options analytics computation error.",
-                "color_class": "text-muted",
-            }
+            return cls._get_unavailable_payload(
+                symbol=sym,
+                spot_price=spot_price,
+                status="COMPUTATION_ERROR",
+                details=f"Options calculation error: {e}",
+            )
+
+    @classmethod
+    def _load_option_chain_data(cls, symbol: str) -> Tuple[Optional[Dict[str, Any]], str]:
+        """Loads authoritative option chain data for the instrument."""
+        # 1. Check live cache first
+        live_cache = WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache" / f"option_chain_{symbol.lower()}.json"
+        if live_cache.exists():
+            try:
+                with open(live_cache, "r", encoding="utf-8") as fp:
+                    return json.load(fp), "LIVE_CACHE"
+            except Exception:
+                pass
+
+        generic_cache = WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache" / "option_chain.json"
+        if generic_cache.exists():
+            try:
+                with open(generic_cache, "r", encoding="utf-8") as fp:
+                    return json.load(fp), "GENERIC_CACHE"
+            except Exception:
+                pass
+
+        sample_file = WORKSPACE_ROOT / "Daily-Market-Regime-Engine" / "data" / "sample_option_chain.json"
+        if sample_file.exists():
+            try:
+                with open(sample_file, "r", encoding="utf-8") as fp:
+                    return json.load(fp), "SAMPLE_FILE"
+            except Exception:
+                pass
+
+        return None, "NONE"
+
+    @classmethod
+    def _check_data_freshness(cls, timestamp_str: str) -> bool:
+        """Validates if timestamp is from today's trading session."""
+        if not timestamp_str:
+            return False
+        today_str = datetime.datetime.now().strftime("%d-%b-%Y")
+        return timestamp_str.startswith(today_str)
+
+    @classmethod
+    def _get_unavailable_payload(
+        cls,
+        symbol: str,
+        spot_price: float,
+        status: str = "UNAVAILABLE",
+        details: str = "Live Option Chain feed currently unavailable.",
+    ) -> Dict[str, Any]:
+        """Provides standardized institutional UNAVAILABLE payload."""
+        return {
+            "sentiment": "Unavailable",
+            "status": status,
+            "data_mode": "UNAVAILABLE",
+            "symbol": symbol,
+            "spot_price": spot_price,
+            "expiry": None,
+            "pcr_oi": None,
+            "pcr_volume": None,
+            "net_ce_oi_change": 0,
+            "net_pe_oi_change": 0,
+            "call_writing_contracts": 0,
+            "put_writing_contracts": 0,
+            "writing_sentiment": "Unavailable",
+            "writing_intensity": "N/A",
+            "max_pain": None,
+            "max_pain_distance": 0.0,
+            "max_pain_bias": "N/A",
+            "major_resistance_strike": None,
+            "major_resistance_oi": 0,
+            "major_support_strike": None,
+            "major_support_oi": 0,
+            "heaviest_call_writing_strike": None,
+            "heaviest_call_writing_chg": 0,
+            "heaviest_put_writing_strike": None,
+            "heaviest_put_writing_chg": 0,
+            "key_strikes": [],
+            "details": details,
+            "color_class": "text-muted",
+        }
 
     @classmethod
     def get_options_sentiment(cls, symbol: str = "NIFTY", spot_price: float = 0.0) -> Dict[str, Any]:

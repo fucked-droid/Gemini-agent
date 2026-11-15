@@ -10,6 +10,7 @@ import logging
 from typing import List, Tuple, Optional, Any
 from config import DHAN_CLIENT_ID, DHAN_ACCESS_TOKEN, DHAN_WSS_URL
 from .market_cache import get_global_cache
+from .market_status_manager import get_market_status_manager
 
 logger = logging.getLogger("DhanWebSocketClient")
 
@@ -47,6 +48,7 @@ class DhanWebSocketClient:
         if not self.client_id or not self.access_token:
             logger.info("WebSocket: Missing credentials. Real-time tick stream idle (using REST poll fallback).")
             self._cache.update_system_status("WEBSOCKET_OFFLINE", "No credentials configured")
+            get_market_status_manager().set_websocket_status(False, "DISCONNECTED")
             return
 
         self.is_running = True
@@ -78,6 +80,9 @@ class DhanWebSocketClient:
                 self._feed = MarketFeed(dhan_context, sub_instruments, "v2")
                 self.is_connected = True
                 self._cache.update_system_status("CONNECTED", "WebSocket live feed active")
+                get_market_status_manager().set_websocket_status(True, "CONNECTED")
+                for _, sec_id in self.instruments:
+                    get_market_status_manager().set_subscription(sec_id, True)
 
                 # Run feed
                 self._feed.run_forever()
@@ -92,6 +97,7 @@ class DhanWebSocketClient:
             except Exception as e:
                 self.is_connected = False
                 self._cache.update_system_status("RECONNECTING", f"WebSocket error: {e}")
+                get_market_status_manager().set_websocket_status(False, "RECONNECTING")
                 logger.warning(f"WebSocket disconnected ({e}). Reconnecting in {backoff}s...")
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 30)

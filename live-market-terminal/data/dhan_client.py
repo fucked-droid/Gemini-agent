@@ -23,6 +23,7 @@ from config import (
     WORKSPACE_ROOT,
 )
 from .instrument_master import InstrumentMaster
+from .market_status_manager import get_market_status_manager, MarketDataStatus
 
 logger = logging.getLogger("DhanClient")
 
@@ -50,18 +51,22 @@ class DhanClient:
 
     def _init_sdk(self):
         """Initializes DhanHQ official SDK if credentials exist."""
+        mgr = get_market_status_manager()
         if self.client_id and self.access_token:
             try:
                 from dhanhq import dhanhq
                 self._dhanhq_sdk = dhanhq(self.client_id, self.access_token)
                 self.is_authenticated = True
+                mgr.set_provider_status(True, "DhanHQ Official v2 API")
                 logger.info("DhanHQ SDK initialized with configured credentials.")
             except Exception as e:
                 logger.warning(f"Could not initialize dhanhq SDK: {e}. Using direct REST interface.")
                 self.is_authenticated = False
+                mgr.set_provider_status(False, "DhanHQ Official v2 API (Offline)")
         else:
             logger.info("No DhanHQ credentials provided. Running in OFFLINE/HISTORICAL mode.")
             self.is_authenticated = False
+            mgr.set_provider_status(False, "DhanHQ Official v2 API (Offline/Historical)")
 
     def _apply_rate_limit(self):
         """Enforces minimum inter-request delay to prevent 429 errors."""
@@ -81,28 +86,43 @@ class DhanClient:
 
     def get_market_status(self, symbol: str = "NIFTY") -> Dict[str, Any]:
         """
-        Determines current Indian market session status based on IST clock.
-        Returns state: LIVE_SESSION, PRE_MARKET, POST_MARKET, CLOSED, WEEKEND.
+        Determines current Indian market session and authoritative data feed status.
+        Never reports LIVE feed status if the provider is offline or unauthenticated.
         """
         now = datetime.datetime.now()
-        if symbol.upper() in ("BTC", "BITCOIN", "BTCUSD"):
+        sym = symbol.upper()
+        mgr = get_market_status_manager()
+        feed_quality = mgr.get_status(sym)
+
+        if sym in ("BTC", "BITCOIN", "BTCUSD"):
+            feed_stat = feed_quality.get("status", "LIVE")
             return {
-                "status": "LIVE_SESSION",
+                "status": feed_stat if feed_stat in ("LIVE", "STALE") else "HISTORICAL",
                 "phase": "24/7 TRADING",
+                "feed_status": feed_stat,
                 "is_open": True,
+                "is_live_feed": (feed_stat == "LIVE"),
+                "provider_name": "Kraken Public Feed",
+                "provider_connected": feed_quality.get("provider_connected", True),
                 "timestamp": now.strftime("%Y-%m-%d %H:%M:%S IST"),
                 "message": "Global Bitcoin/Crypto continuous 24/7 session is ACTIVE.",
+                "quality": feed_quality,
             }
-        # In production environments with UTC servers, convert or assume local IST:
-        weekday = now.weekday()  # 5=Saturday, 6=Sunday
 
+        # Indian Equities (NSE)
+        weekday = now.weekday()  # 5=Saturday, 6=Sunday
         if weekday in (5, 6):
             return {
                 "status": "NON_TRADING_DAY",
                 "phase": "WEEKEND",
+                "feed_status": "HISTORICAL",
                 "is_open": False,
+                "is_live_feed": False,
+                "provider_name": self.provider_name if self.is_authenticated else "Historical Master / Offline",
+                "provider_connected": self.is_authenticated,
                 "timestamp": now.strftime("%Y-%m-%d %H:%M:%S IST"),
                 "message": "Market is closed for the weekend.",
+                "quality": feed_quality,
             }
 
         curr_time = (now.hour, now.minute)
@@ -113,28 +133,38 @@ class DhanClient:
         post_end = SESSION_TIMINGS["post_market_end"]
 
         if pre_start <= curr_time < pre_end:
-            status = "PRE_MARKET"
+            phase = "PRE_MARKET"
             is_open = False
             msg = "Pre-market order collection & price discovery."
         elif market_open <= curr_time < market_close:
-            status = "LIVE_SESSION"
+            phase = "LIVE_SESSION"
             is_open = True
-            msg = "Continuous live trading session is ACTIVE."
+            msg = "Continuous trading hours."
         elif market_close <= curr_time < post_end:
-            status = "POST_MARKET"
+            phase = "POST_MARKET"
             is_open = False
             msg = "Post-market closing session."
         else:
-            status = "CLOSED"
+            phase = "CLOSED"
             is_open = False
             msg = "Trading session is closed."
 
+        # Compute single source of truth feed status
+        feed_stat = feed_quality.get("status", "HISTORICAL")
+        # Ensure status NEVER claims LIVE if provider is offline or feed is historical
+        effective_status = feed_stat if is_open and self.is_authenticated else "HISTORICAL"
+
         return {
-            "status": status,
-            "phase": status,
+            "status": effective_status,
+            "phase": phase,
+            "feed_status": feed_stat,
             "is_open": is_open,
+            "is_live_feed": (feed_stat == "LIVE"),
+            "provider_name": self.provider_name if self.is_authenticated else "Historical Master / Offline",
+            "provider_connected": self.is_authenticated,
             "timestamp": now.strftime("%Y-%m-%d %H:%M:%S IST"),
-            "message": msg,
+            "message": f"{msg} Feed mode: {feed_stat}.",
+            "quality": feed_quality,
         }
 
     def get_quote(self, symbol: str) -> Dict[str, Any]:
@@ -185,6 +215,7 @@ class DhanClient:
             change = ltp - close
             change_pct = (change / close * 100.0) if close != 0 else 0.0
 
+            get_market_status_manager().record_tick(meta["symbol"])
             return {
                 "symbol": meta["symbol"],
                 "name": meta["name"],

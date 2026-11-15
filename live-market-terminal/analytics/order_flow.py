@@ -57,15 +57,22 @@ class OrderFlowAnalyzer:
         buyer_ratio = buyer_ratio.fillna(0.5)
 
         buy_vol = vol * buyer_ratio
-        sell_vol = vol * (1.0 - buyer_ratio)
-        delta = buy_vol - sell_vol
-
         df["Buy_Volume"] = buy_vol.round().astype(int)
-        df["Sell_Volume"] = sell_vol.round().astype(int)
-        df["Delta"] = delta.round().astype(int)
+        df["Sell_Volume"] = (vol.round().astype(int) - df["Buy_Volume"]).astype(int)
+        df["Delta"] = (df["Buy_Volume"] - df["Sell_Volume"]).astype(int)
         df["CVD"] = df["Delta"].cumsum()
 
         return df
+
+    @classmethod
+    def compute_session_cvd(cls, session_df: pd.DataFrame) -> int:
+        """
+        Calculates authoritative Cumulative Volume Delta anchored to session open.
+        """
+        if session_df is None or session_df.empty or "Volume" not in session_df.columns:
+            return 0
+        df_flow = cls.compute_volume_delta(session_df)
+        return int(df_flow["CVD"].iloc[-1]) if not df_flow.empty and "CVD" in df_flow.columns else 0
 
     @classmethod
     def compute_volume_profile(
@@ -289,7 +296,7 @@ class OrderFlowAnalyzer:
         }
 
     @classmethod
-    def analyze_order_flow(cls, df: pd.DataFrame) -> Dict[str, Any]:
+    def analyze_order_flow(cls, df: pd.DataFrame, session_df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         """
         Extracts comprehensive institutional order flow conditions:
         - Volume Delta decomposition
@@ -303,6 +310,10 @@ class OrderFlowAnalyzer:
             return {
                 "order_flow_state": "NEUTRAL",
                 "cvd": 0,
+                "session_cvd": 0,
+                "timeframe_cvd": 0,
+                "candle_delta": 0,
+                "cumulative_volume_delta": 0,
                 "buyer_percentage": 50.0,
                 "seller_percentage": 50.0,
                 "aggression_ratio": 1.0,
@@ -339,7 +350,9 @@ class OrderFlowAnalyzer:
 
         buyer_pct = (total_buy / total_vol * 100.0) if total_vol > 0 else 50.0
         seller_pct = 100.0 - buyer_pct
-        current_cvd = int(df_flow["CVD"].iloc[-1])
+        timeframe_cvd = int(df_flow["CVD"].iloc[-1])
+        candle_delta = int(df_flow["Delta"].iloc[-1]) if "Delta" in df_flow.columns else 0
+        session_cvd = cls.compute_session_cvd(session_df) if session_df is not None and not session_df.empty else timeframe_cvd
 
         # Aggression Ratio (Buy Volume / Sell Volume)
         agg_ratio = round(total_buy / total_sell, 2) if total_sell > 0 else 1.0
@@ -386,13 +399,18 @@ class OrderFlowAnalyzer:
 
         summary = (
             f"{state.replace('_', ' ')}: Buyers {buyer_pct:.1f}% vs Sellers {seller_pct:.1f}% (Aggression: {agg_ratio:.2f}x). "
-            f"CVD: {current_cvd:+d} contracts. POC: ₹{volume_profile['poc']:,.0f} | VAH: ₹{volume_profile['vah']:,.0f} | VAL: ₹{volume_profile['val']:,.0f}. "
+            f"Session CVD: {session_cvd:+d} | Bar Delta: {candle_delta:+d} contracts. "
+            f"POC: ₹{volume_profile['poc']:,.0f} | VAH: ₹{volume_profile['vah']:,.0f} | VAL: ₹{volume_profile['val']:,.0f}. "
             f"Divergence: {divergence}."
         )
 
         return {
             "order_flow_state": state,
-            "cvd": current_cvd,
+            "cvd": session_cvd,
+            "session_cvd": session_cvd,
+            "timeframe_cvd": timeframe_cvd,
+            "candle_delta": candle_delta,
+            "cumulative_volume_delta": session_cvd,
             "buyer_percentage": round(buyer_pct, 1),
             "seller_percentage": round(seller_pct, 1),
             "total_buy_volume": int(total_buy),

@@ -14,6 +14,8 @@ import urllib.request
 import pandas as pd
 import numpy as np
 
+from .market_status_manager import get_market_status_manager
+
 logger = logging.getLogger("CryptoFeed")
 
 class CryptoFeed:
@@ -69,6 +71,7 @@ class CryptoFeed:
                 }
                 cls._cached_quote = q
                 cls._quote_cache_ts = now_ts
+                get_market_status_manager().record_tick("BTC")
                 return q
         except Exception as e:
             logger.debug(f"Coinbase quote failed: {e}")
@@ -104,6 +107,7 @@ class CryptoFeed:
                 }
                 cls._cached_quote = q
                 cls._quote_cache_ts = now_ts
+                get_market_status_manager().record_tick("BTC")
                 return q
         except Exception as e:
             logger.debug(f"Kraken quote failed: {e}")
@@ -124,8 +128,8 @@ class CryptoFeed:
             "close": round(fallback_p, 2),
             "volume": 25000,
             "timestamp": now_str,
-            "is_live": True,
-            "source": "CRYPTO_SIMULATION",
+            "is_live": False,
+            "source": "HISTORICAL_FALLBACK",
             "currency": "$",
         }
         cls._cached_quote = fallback_q

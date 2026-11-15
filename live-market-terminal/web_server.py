@@ -32,7 +32,13 @@ from config import (
     MONITORED_INSTRUMENTS,
     TOP_NIFTY_CONSTITUENTS,
 )
-from data import DhanClient, HistoricalDataManager, get_global_cache
+from data import (
+    DhanClient,
+    HistoricalDataManager,
+    get_global_cache,
+    get_market_status_manager,
+    MarketDataStatus,
+)
 from analytics import (
     TechnicalIndicators,
     OrderFlowAnalyzer,
@@ -111,11 +117,29 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
 
     candles_5m = tf_suite.get("5m", candles_1m)
     df_enriched, ind_sc = TechnicalIndicators.calculate_all(candles_5m)
-    order_flow = OrderFlowAnalyzer.analyze_order_flow(candles_5m)
+    order_flow = OrderFlowAnalyzer.analyze_order_flow(candles_5m, session_df=candles_1m)
     structure = MarketStructureAnalyzer.analyze_structure(candles_5m)
     smc_analysis = SMCAnalyzer.analyze_smc(candles_5m)
-    breadth = MarketBreadthAnalyzer.compute_breadth_from_constituents(TOP_NIFTY_CONSTITUENTS)
-    inst_flow = MarketBreadthAnalyzer.get_institutional_flow()
+
+    # Strict Instrument Data Isolation: Do not allow BTC data or crypto logic into NIFTY/BANKNIFTY calculations
+    if sym == "BTC":
+        breadth = {
+            "status": "NOT_APPLICABLE",
+            "advances": 0,
+            "declines": 0,
+            "adr": 1.0,
+            "breadth_score": 0.0,
+            "interpretation": "Global 24/7 Crypto Flow (NSE Breadth N/A)",
+        }
+        inst_flow = {
+            "status": "NOT_APPLICABLE",
+            "net_flow_cr": 0.0,
+            "interpretation": "Digital Assets 24/7 Spot / Perpetual Market",
+        }
+    else:
+        breadth = MarketBreadthAnalyzer.compute_breadth_from_constituents(TOP_NIFTY_CONSTITUENTS)
+        inst_flow = MarketBreadthAnalyzer.get_institutional_flow()
+
     mtf_data = MultiTimeframeEngine.evaluate_multi_timeframe_suite(tf_suite)
 
     spot = quote.get("price", 25144.30 if sym != "BTC" else 65850.0)
@@ -167,16 +191,26 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     opt_sentiment = opt_analysis.get("sentiment", "Unavailable")
     perf_metrics = PerformanceAnalytics.get_performance_metrics(sym)
 
+    status_mgr = get_market_status_manager()
+    status_info = status_mgr.get_status(sym)
+
+    # Shared CVD value anchored to session open for complete cross-component parity
+    shared_session_cvd = order_flow.get("session_cvd", order_flow.get("cvd", 0))
+
     market_intelligence = {
         "market_structure": ms_label,
         "vwap_position": vwap_pos,
         "vwap_value": round(vwap_val, 2),
         "order_flow": of_label,
         "buyer_percentage": round(buyer_pct, 1),
-        "cvd": order_flow.get("cvd", 0),
+        "cvd": shared_session_cvd,
+        "session_cvd": shared_session_cvd,
+        "timeframe_cvd": order_flow.get("timeframe_cvd", 0),
+        "candle_delta": order_flow.get("candle_delta", 0),
         "options_sentiment": opt_sentiment,
         "options_details": opt_analysis.get("details", ""),
         "options_pcr": opt_analysis.get("pcr_oi"),
+        "data_status": status_info,
     }
 
     # Attach market intelligence to decision payload
@@ -228,12 +262,20 @@ async def continuous_market_monitor_task():
             cache.update_system_status(api_state, "Continuous market stream active.")
             cache.save_to_snapshot()
 
+            status_mgr = get_market_status_manager()
+            market_data_status = {
+                "NIFTY": status_mgr.get_status("NIFTY"),
+                "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+                "BTC": status_mgr.get_status("BTC"),
+            }
+
             # Broadcast live packet to all connected web clients
             packet = {
                 "type": "TICK_UPDATE",
                 "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
                 "quotes": quotes,
                 "market_status": market_status,
+                "market_data_status": market_data_status,
                 "active_symbol": "NIFTY",
                 "analytics": cache.analytics.get("NIFTY", {}),
                 "forecasts": cache.forecasts.get("NIFTY", {}),
@@ -272,11 +314,17 @@ def serve_index():
 
 @app.get("/api/overview")
 def get_overview():
-    """Returns quotes, exchange clock, and market status."""
+    """Returns quotes, exchange clock, market status, and authoritative feed status."""
     snap = cache.get_snapshot()
+    status_mgr = get_market_status_manager()
     return {
         "quotes": snap.get("quotes", {}),
         "market_status": snap.get("market_status", {}),
+        "market_data_status": {
+            "NIFTY": status_mgr.get_status("NIFTY"),
+            "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "BTC": status_mgr.get_status("BTC"),
+        },
         "system_status": snap.get("system_status", {}),
     }
 
@@ -407,11 +455,18 @@ async def websocket_live_stream(websocket: WebSocket):
     try:
         # Send initial snapshot immediately upon connection
         snap = cache.get_snapshot()
+        status_mgr = get_market_status_manager()
+        market_data_status = {
+            "NIFTY": status_mgr.get_status("NIFTY"),
+            "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "BTC": status_mgr.get_status("BTC"),
+        }
         init_packet = {
             "type": "INITIAL_STATE",
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
             "quotes": snap.get("quotes", {}),
             "market_status": snap.get("market_status", {}),
+            "market_data_status": market_data_status,
             "active_symbol": "NIFTY",
             "analytics": cache.analytics.get("NIFTY", {}),
             "forecasts": cache.forecasts.get("NIFTY", {}),

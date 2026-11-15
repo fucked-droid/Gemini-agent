@@ -295,39 +295,77 @@ class TradingDecisionEngine:
         else:
             ms_label = "Neutral"
 
+        has_valid_setup = (decision in ("BUY", "SELL"))
+
+        # Construct 4 Core Institutional Pillars
+        htf_bias_trend = "BULLISH" if bull_tf >= 3 else ("BEARISH" if bear_tf >= 3 else "MIXED / NEUTRAL")
+        htf_bias_desc = f"{bull_tf}/5 Bullish, {bear_tf}/5 Bearish timeframes ({comp_trend})"
+
+        intraday_desc = f"Price {'above' if spot_price > vwap else 'below'} Session VWAP (₹{vwap:,.1f}) | {ms_label} Structure"
+
+        if has_valid_setup and decision == "BUY":
+            entry_conf_desc = f"SMC {smc_setup_type.replace('_', ' ').title()} confirmed at ₹{fixed_entry:,.1f} with {buyer_pct:.1f}% Buyer CVD"
+        elif has_valid_setup and decision == "SELL":
+            entry_conf_desc = f"Bearish trend continuation confirmed at ₹{fixed_entry:,.1f} with {100.0 - buyer_pct:.1f}% Seller CVD"
+        else:
+            entry_conf_desc = "No confirmed entry trigger. Awaiting structural order block or FVG test."
+
+        inval_desc = f"Setup canceled if price closes beyond ₹{stop_loss:,.1f} or order flow flips."
+
+        framework_breakdown = {
+            "higher_timeframe_bias": {
+                "trend": htf_bias_trend,
+                "composite_trend": comp_trend,
+                "bullish_timeframes": bull_tf,
+                "bearish_timeframes": bear_tf,
+                "description": htf_bias_desc,
+            },
+            "intraday_trend": {
+                "structure": ms_label,
+                "vwap_price": round(vwap, 2),
+                "is_above_vwap": spot_price >= vwap,
+                "description": intraday_desc,
+            },
+            "entry_confirmation": {
+                "is_confirmed": has_valid_setup,
+                "setup_type": smc_setup_type,
+                "fixed_entry_price": fixed_entry,
+                "buyer_percentage": round(buyer_pct, 1),
+                "description": entry_conf_desc,
+            },
+            "trade_invalidation": {
+                "invalidation_price": stop_loss,
+                "triggers": invalidations,
+                "description": inval_desc,
+            },
+        }
+
+        # Dynamic Explanations across all 4 Pillars
+        structured_reasons = [
+            f"Higher-Timeframe Bias: {htf_bias_desc}.",
+            f"Intraday Trend & VWAP: {intraday_desc}.",
+            f"Entry Confirmation: {entry_conf_desc}.",
+            f"Trade Invalidation: {inval_desc}.",
+        ]
+
         if decision == "BUY":
             has_valid_setup = True
             clean_rec = "STRONG BUY" if (confidence >= 80.0 or not is_stretched) else "BUY"
             trade_decision_headline = clean_rec
             trade_decision_sub = "Confirmed bullish structural entry anchored to support."
-            trade_decision_reasons = (
-                [r for r in reasons_bullish]
-                + (smc_why_works if smc_why_works else [])
-            )
+            trade_decision_reasons = structured_reasons + ([r for r in reasons_bullish[:2]])
         elif decision == "SELL":
             has_valid_setup = True
             clean_rec = "STRONG SELL" if confidence >= 80.0 else "SELL"
             trade_decision_headline = clean_rec
             trade_decision_sub = "Confirmed bearish continuation below resistance."
-            trade_decision_reasons = [r for r in reasons_bearish]
+            trade_decision_reasons = structured_reasons + ([r for r in reasons_bearish[:2]])
         else:
             has_valid_setup = False
             clean_rec = "WAIT FOR CONFIRMATION"
             trade_decision_headline = "WAIT"
             trade_decision_sub = "No confirmed entry. Wait for price confirmation and defined risk."
-            trade_decision_reasons = []
-            if spot_price < vwap:
-                trade_decision_reasons.append(f"Price (₹{spot_price:,.2f}) trading below Session VWAP benchmark (₹{vwap:,.2f}).")
-            elif spot_price > vwap and is_stretched:
-                trade_decision_reasons.append("Price extended above entry anchor; awaiting confirmed pullback before committing capital.")
-            if "EXPANSION" not in struct_state:
-                trade_decision_reasons.append(f"Market structure is in {struct_state.replace('_', ' ').title()}; awaiting clear Break of Structure.")
-            if reasons_caution:
-                trade_decision_reasons.extend(reasons_caution[:2])
-            if buy_priority_mode and is_bearish:
-                trade_decision_reasons.append("Capital preservation mode active: Short selling skipped due to margin requirements.")
-            if not trade_decision_reasons:
-                trade_decision_reasons.append("Chop/consolidation detected with conflicting multi-timeframe directional signals.")
+            trade_decision_reasons = structured_reasons
 
         # Format Fixed Entry Display
         entry_zone_str = f"₹{fixed_entry:,.2f} (FIXED ANCHOR)"
@@ -341,6 +379,7 @@ class TradingDecisionEngine:
             "trade_decision_headline": trade_decision_headline,
             "trade_decision_sub": trade_decision_sub,
             "trade_decision_reasons": trade_decision_reasons,
+            "framework_breakdown": framework_breakdown,
             "execution_type": exec_type,
             "capital_mode": "BUY_PRIORITY_LOW_CAPITAL" if buy_priority_mode else "UNCONSTRAINED",
             "confidence_pct": round(confidence, 1),
