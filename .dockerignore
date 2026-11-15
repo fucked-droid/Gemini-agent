@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.git/
+.gitignore
+.gemini/
+.gemini_sessions.json
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
