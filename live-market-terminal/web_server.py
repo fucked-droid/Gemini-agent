@@ -146,6 +146,9 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     atr = ind_sc.get("atr", spot * 0.005)
     forecasts = ForecastOrchestrator.run_prediction_pipeline(df_enriched, spot, atr)
 
+    status_mgr = get_market_status_manager()
+    status_info = status_mgr.get_status(sym)
+
     decision = TradingDecisionEngine.evaluate(
         spot_price=spot,
         indicators=ind_sc,
@@ -155,6 +158,11 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
         market_breadth=breadth,
         buy_priority_mode=True,
         smc_data=smc_analysis,
+        symbol=sym,
+        timeframe="5m",
+        market_status=status_info,
+        data_mode=status_info.get("data_mode", "HISTORICAL"),
+        is_stale=status_info.get("is_stale", False),
     )
 
     # Market Intelligence Synthesis
@@ -178,11 +186,14 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     else:
         vwap_pos = "At VWAP"
 
-    buyer_pct = float(order_flow.get("buyer_percentage", 50.0))
+    buyer_pct = order_flow.get("buyer_percentage")
+    buyer_pct_float = float(buyer_pct) if buyer_pct is not None else 50.0
     flow_state = order_flow.get("order_flow_state", "NEUTRAL")
-    if buyer_pct >= 52.0 or "BUYING" in flow_state:
+    if flow_state == "UNAVAILABLE":
+        of_label = "Unavailable"
+    elif buyer_pct_float >= 52.0 or "BUYING" in flow_state:
         of_label = "Buyers Dominating"
-    elif buyer_pct <= 48.0 or "SELLING" in flow_state:
+    elif buyer_pct_float <= 48.0 or "SELLING" in flow_state:
         of_label = "Sellers Dominating"
     else:
         of_label = "Balanced"
@@ -191,22 +202,22 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     opt_sentiment = opt_analysis.get("sentiment", "Unavailable")
     perf_metrics = PerformanceAnalytics.get_performance_metrics(sym)
 
-    status_mgr = get_market_status_manager()
-    status_info = status_mgr.get_status(sym)
-
-    # Shared CVD value anchored to session open for complete cross-component parity
-    shared_session_cvd = order_flow.get("session_cvd", order_flow.get("cvd", 0))
+    # Authoritative CVD anchored to session
+    is_cvd_avail = order_flow.get("is_cvd_available", False)
+    shared_session_cvd = order_flow.get("session_cvd")
 
     market_intelligence = {
         "market_structure": ms_label,
         "vwap_position": vwap_pos,
         "vwap_value": round(vwap_val, 2),
         "order_flow": of_label,
-        "buyer_percentage": round(buyer_pct, 1),
+        "buyer_percentage": round(buyer_pct_float, 1) if buyer_pct is not None else 50.0,
+        "is_cvd_available": is_cvd_avail,
         "cvd": shared_session_cvd,
         "session_cvd": shared_session_cvd,
-        "timeframe_cvd": order_flow.get("timeframe_cvd", 0),
-        "candle_delta": order_flow.get("candle_delta", 0),
+        "timeframe_cvd": order_flow.get("timeframe_cvd"),
+        "candle_delta": order_flow.get("candle_delta"),
+        "cvd_display": order_flow.get("cvd_display", "CVD UNAVAILABLE"),
         "options_sentiment": opt_sentiment,
         "options_details": opt_analysis.get("details", ""),
         "options_pcr": opt_analysis.get("pcr_oi"),
@@ -317,7 +328,7 @@ def get_overview():
     """Returns quotes, exchange clock, market status, and authoritative feed status."""
     snap = cache.get_snapshot()
     status_mgr = get_market_status_manager()
-    return {
+    overview_data = {
         "quotes": snap.get("quotes", {}),
         "market_status": snap.get("market_status", {}),
         "market_data_status": {
@@ -327,6 +338,10 @@ def get_overview():
         },
         "system_status": snap.get("system_status", {}),
     }
+    return status_mgr.create_response_envelope(
+        instrument="NIFTY",
+        payload=overview_data
+    )
 
 @app.get("/api/candles")
 def get_candles(symbol: str = "NIFTY", timeframe: str = "5m"):
@@ -364,12 +379,16 @@ def get_candles(symbol: str = "NIFTY", timeframe: str = "5m"):
             "cvd": cvd_val,
         })
 
-    return {
-        "symbol": sym,
-        "timeframe": tf,
-        "count": len(bars),
-        "bars": bars,
-    }
+    status_mgr = get_market_status_manager()
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload={
+            "symbol": sym,
+            "timeframe": tf,
+            "count": len(bars),
+            "bars": bars,
+        }
+    )
 
 @app.get("/api/internals")
 def get_internals(symbol: str = "NIFTY"):
@@ -377,7 +396,12 @@ def get_internals(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.analytics or not cache.analytics[sym] or "market_intelligence" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
-    return cache.analytics.get(sym, {})
+    status_mgr = get_market_status_manager()
+    analytics_data = cache.analytics.get(sym, {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=analytics_data
+    )
 
 @app.get("/api/decision")
 def get_decision(symbol: str = "NIFTY"):
@@ -385,7 +409,12 @@ def get_decision(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.signals or not cache.signals[sym] or "clean_recommendation" not in cache.signals[sym]:
         process_symbol_pipeline(sym)
-    return cache.signals.get(sym, {})
+    status_mgr = get_market_status_manager()
+    sig = cache.signals.get(sym, {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=sig
+    )
 
 @app.get("/api/forecasts")
 def get_forecasts(symbol: str = "NIFTY"):
@@ -393,7 +422,12 @@ def get_forecasts(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.forecasts or not cache.forecasts[sym]:
         process_symbol_pipeline(sym)
-    return cache.forecasts.get(sym, {})
+    status_mgr = get_market_status_manager()
+    fcasts = cache.forecasts.get(sym, {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=fcasts
+    )
 
 @app.get("/api/options")
 def get_options(symbol: str = "NIFTY"):
@@ -401,8 +435,13 @@ def get_options(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    return analytics_data.get("options_intelligence", OptionsAnalytics.get_options_intelligence(sym))
+    opt_data = analytics_data.get("options_intelligence", OptionsAnalytics.get_options_intelligence(sym))
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=opt_data
+    )
 
 @app.get("/api/performance")
 def get_performance(symbol: str = "NIFTY"):
@@ -410,8 +449,13 @@ def get_performance(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.analytics or not cache.analytics[sym] or "performance" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    return analytics_data.get("performance", PerformanceAnalytics.get_performance_metrics(sym))
+    perf_data = analytics_data.get("performance", PerformanceAnalytics.get_performance_metrics(sym))
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=perf_data
+    )
 
 @app.get("/api/smc")
 def get_smc(symbol: str = "NIFTY"):
@@ -419,8 +463,13 @@ def get_smc(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.analytics or not cache.analytics[sym] or "smc" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    return analytics_data.get("smc", {})
+    smc_data = analytics_data.get("smc", {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=smc_data
+    )
 
 @app.get("/api/orderflow")
 def get_orderflow(symbol: str = "NIFTY"):
@@ -428,18 +477,33 @@ def get_orderflow(symbol: str = "NIFTY"):
     sym = symbol.upper()
     if sym not in cache.analytics or not cache.analytics[sym] or "order_flow" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    return analytics_data.get("order_flow", {})
+    of_data = analytics_data.get("order_flow", {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=of_data
+    )
 
 @app.get("/api/health")
 def get_health():
     """Returns API health, data freshness, and active connections."""
     snap = cache.get_snapshot()
-    return {
+    status_mgr = get_market_status_manager()
+    health_data = {
         "status": "HEALTHY",
         "active_clients": len(manager.active_connections),
         "system_status": snap.get("system_status", {}),
+        "market_data_status": {
+            "NIFTY": status_mgr.get_status("NIFTY"),
+            "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "BTC": status_mgr.get_status("BTC"),
+        },
     }
+    return status_mgr.create_response_envelope(
+        instrument="NIFTY",
+        payload=health_data
+    )
 
 # ==========================================
 # WEBSOCKET STREAMING ENDPOINT

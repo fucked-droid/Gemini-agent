@@ -171,7 +171,29 @@
         let hasValidSetup = false;
         let actionState = 'STAND_ASIDE';
 
-        if (cleanRecFromBackend === 'STRONG BUY') {
+        if (cleanRecFromBackend === 'EXECUTION LOCKED' || rawDec === 'EXECUTION LOCKED') {
+            return {
+                recommendation: 'EXECUTION LOCKED',
+                displayDecision: 'EXECUTION LOCKED',
+                actionState: 'EXECUTION_LOCKED',
+                isActiveTrade: false,
+                hasValidSetup: false,
+                badgeColorClass: 'text-cyan',
+                themeColor: '#00e5ff',
+                confidence: 0,
+            };
+        } else if (cleanRecFromBackend === 'DATA UNAVAILABLE' || rawDec === 'DATA UNAVAILABLE') {
+            return {
+                recommendation: 'DATA UNAVAILABLE',
+                displayDecision: 'DATA UNAVAILABLE',
+                actionState: 'DATA_UNAVAILABLE',
+                isActiveTrade: false,
+                hasValidSetup: false,
+                badgeColorClass: 'text-muted',
+                themeColor: '#8b949e',
+                confidence: 0,
+            };
+        } else if (cleanRecFromBackend === 'STRONG BUY') {
             recommendation = 'STRONG BUY';
             badgeColorClass = 'text-green';
             themeColor = '#00e676';

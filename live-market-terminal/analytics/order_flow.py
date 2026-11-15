@@ -65,14 +65,18 @@ class OrderFlowAnalyzer:
         return df
 
     @classmethod
-    def compute_session_cvd(cls, session_df: pd.DataFrame) -> int:
+    def compute_session_cvd(cls, session_df: Optional[pd.DataFrame]) -> Optional[int]:
         """
         Calculates authoritative Cumulative Volume Delta anchored to session open.
+        Returns None if session volume is unavailable or zero.
         """
         if session_df is None or session_df.empty or "Volume" not in session_df.columns:
-            return 0
+            return None
+        vol_sum = float(session_df["Volume"].sum())
+        if vol_sum <= 0:
+            return None
         df_flow = cls.compute_volume_delta(session_df)
-        return int(df_flow["CVD"].iloc[-1]) if not df_flow.empty and "CVD" in df_flow.columns else 0
+        return int(df_flow["CVD"].iloc[-1]) if not df_flow.empty and "CVD" in df_flow.columns else None
 
     @classmethod
     def compute_volume_profile(
@@ -308,16 +312,19 @@ class OrderFlowAnalyzer:
         """
         if df.empty or len(df) < 5:
             return {
+                "is_cvd_available": False,
+                "status": "UNAVAILABLE",
                 "order_flow_state": "NEUTRAL",
                 "cvd": 0,
                 "session_cvd": 0,
                 "timeframe_cvd": 0,
                 "candle_delta": 0,
                 "cumulative_volume_delta": 0,
+                "cvd_display": "CVD UNAVAILABLE",
                 "buyer_percentage": 50.0,
                 "seller_percentage": 50.0,
                 "aggression_ratio": 1.0,
-                "aggression_state": "Balanced Aggression",
+                "aggression_state": "Data Unavailable",
                 "volume_ratio": 1.0,
                 "divergence": "NONE",
                 "summary": "Insufficient candles for order flow analysis.",
@@ -344,7 +351,39 @@ class OrderFlowAnalyzer:
             }
 
         df_flow = cls.compute_volume_delta(df)
-        total_vol = df_flow["Volume"].sum()
+        total_vol = float(df_flow["Volume"].sum())
+        if total_vol <= 0:
+            last_p = float(df["Close"].iloc[-1]) if "Close" in df.columns else 0.0
+            return {
+                "is_cvd_available": False,
+                "status": "UNAVAILABLE",
+                "order_flow_state": "NEUTRAL",
+                "cvd": 0,
+                "session_cvd": 0,
+                "timeframe_cvd": 0,
+                "candle_delta": 0,
+                "cumulative_volume_delta": 0,
+                "cvd_display": "CVD UNAVAILABLE",
+                "buyer_percentage": 50.0,
+                "seller_percentage": 50.0,
+                "aggression_ratio": 1.0,
+                "aggression_state": "Volume Data Unavailable",
+                "volume_ratio": 1.0,
+                "divergence": "NONE",
+                "summary": "Trade volume data is unavailable for this instrument.",
+                "volume_profile": {
+                    "poc": last_p,
+                    "vah": last_p,
+                    "val": last_p,
+                    "value_area_span": 0.0,
+                    "position": "INSIDE_VALUE_AREA",
+                    "position_label": "Inside Value Area (Volume Unavailable)",
+                    "total_volume": 0,
+                    "bins": [],
+                },
+                "vwap_bands": cls.compute_vwap_bands(df_flow),
+            }
+
         total_buy = df_flow["Buy_Volume"].sum()
         total_sell = df_flow["Sell_Volume"].sum()
 
@@ -352,7 +391,8 @@ class OrderFlowAnalyzer:
         seller_pct = 100.0 - buyer_pct
         timeframe_cvd = int(df_flow["CVD"].iloc[-1])
         candle_delta = int(df_flow["Delta"].iloc[-1]) if "Delta" in df_flow.columns else 0
-        session_cvd = cls.compute_session_cvd(session_df) if session_df is not None and not session_df.empty else timeframe_cvd
+        computed_session_cvd = cls.compute_session_cvd(session_df) if session_df is not None and not session_df.empty else None
+        session_cvd = computed_session_cvd if computed_session_cvd is not None else timeframe_cvd
 
         # Aggression Ratio (Buy Volume / Sell Volume)
         agg_ratio = round(total_buy / total_sell, 2) if total_sell > 0 else 1.0
@@ -405,12 +445,15 @@ class OrderFlowAnalyzer:
         )
 
         return {
+            "is_cvd_available": True,
+            "status": "AVAILABLE",
             "order_flow_state": state,
             "cvd": session_cvd,
             "session_cvd": session_cvd,
             "timeframe_cvd": timeframe_cvd,
             "candle_delta": candle_delta,
             "cumulative_volume_delta": session_cvd,
+            "cvd_display": f"{session_cvd:+,d} contracts",
             "buyer_percentage": round(buyer_pct, 1),
             "seller_percentage": round(seller_pct, 1),
             "total_buy_volume": int(total_buy),

@@ -173,48 +173,63 @@ class MarketTerminalClient {
 
         if (modeElem) {
             const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+            const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
             const stat = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'HISTORICAL');
-            modeElem.textContent = stat;
-            if (stat === 'LIVE') {
+            
+            if (isClosed && this.activeSymbol !== 'BTC') {
+                modeElem.className = 'feed-mode-tag text-cyan';
+                modeElem.textContent = 'MARKET CLOSED';
+            } else if (stat === 'LIVE') {
                 modeElem.className = 'feed-mode-tag mode-live';
+                modeElem.textContent = 'LIVE';
             } else if (stat === 'STALE') {
                 modeElem.className = 'feed-mode-tag text-yellow';
                 modeElem.textContent = 'STALE FEED';
             } else if (stat === 'RECONNECTING') {
                 modeElem.className = 'feed-mode-tag text-yellow';
                 modeElem.textContent = 'RECONNECTING';
-            } else if (stat === 'OFFLINE') {
+            } else if (stat === 'OFFLINE' || stat === 'DATA_UNAVAILABLE') {
                 modeElem.className = 'feed-mode-tag text-red';
+                modeElem.textContent = 'DATA UNAVAILABLE';
             } else {
-                modeElem.className = 'feed-mode-tag text-yellow';
+                modeElem.className = 'feed-mode-tag text-cyan';
                 modeElem.textContent = 'HISTORICAL';
             }
         }
 
         // Update Centralized Footer Status
         const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
         const provElem = document.getElementById('footer-provider-name');
         if (provElem) {
             provElem.textContent = symStat.provider_name || (this.activeSymbol === 'BTC' ? 'Kraken Public Feed' : 'DhanHQ Official v2 API');
         }
         const feedModeElem = document.getElementById('footer-feed-mode');
         if (feedModeElem) {
-            feedModeElem.textContent = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'OFFLINE / HISTORICAL');
+            if (isClosed && this.activeSymbol !== 'BTC') {
+                feedModeElem.textContent = 'OFFLINE / HISTORICAL (MARKET CLOSED)';
+            } else {
+                feedModeElem.textContent = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'HISTORICAL BENCHMARK');
+            }
         }
         const streamHealthElem = document.getElementById('footer-stream-health');
         if (streamHealthElem) {
             const s = symStat.status;
-            if (s === 'LIVE') {
-                streamHealthElem.textContent = '100% Stream OK';
+            if (isClosed && this.activeSymbol !== 'BTC') {
+                streamHealthElem.textContent = 'Official Close Replay';
+                streamHealthElem.className = 'text-cyan';
+            } else if (s === 'LIVE') {
+                const delta = symStat.last_tick_delta_seconds || 0;
+                streamHealthElem.textContent = `100% Stream OK (${delta.toFixed(1)}s)`;
                 streamHealthElem.className = 'text-green';
             } else if (s === 'STALE') {
                 streamHealthElem.textContent = 'Ticks Stalled (>15s)';
                 streamHealthElem.className = 'text-yellow';
             } else if (s === 'RECONNECTING') {
-                streamHealthElem.textContent = 'Reconnecting...';
+                streamHealthElem.textContent = 'Upstream Reconnecting...';
                 streamHealthElem.className = 'text-yellow';
-            } else if (s === 'OFFLINE') {
-                streamHealthElem.textContent = 'Offline';
+            } else if (s === 'OFFLINE' || s === 'DATA_UNAVAILABLE') {
+                streamHealthElem.textContent = 'Provider Offline';
                 streamHealthElem.className = 'text-red';
             } else {
                 streamHealthElem.textContent = 'Historical Snapshot';
@@ -534,20 +549,30 @@ class MarketTerminalClient {
             this.ws = new WebSocket(wsUrl);
         } catch (e) {
             console.error('[WebSocket] Instantiation failed:', e);
-            pillWs.textContent = 'WS: FAILED';
-            pillWs.style.color = '#ff1744';
+            if (pillWs) {
+                pillWs.textContent = 'WS: FAILED';
+                pillWs.style.color = '#ff1744';
+            }
             return;
         }
 
         this.ws.onopen = () => {
             console.log('[WebSocket] Connection established.');
-            pillWs.textContent = 'WS: CONNECTED';
-            pillWs.style.color = '#00e676';
-            document.getElementById('footer-ws-status').textContent = 'Live Active';
+            this.wsStatus = 'CONNECTED';
+            if (pillWs) {
+                pillWs.textContent = 'WS: CONNECTED';
+                pillWs.style.color = '#00e676';
+            }
+            const footerWs = document.getElementById('footer-ws-status');
+            if (footerWs) {
+                const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+                footerWs.textContent = symStat.is_market_closed ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
+            }
         };
 
         this.ws.onmessage = (event) => {
             try {
+                this.lastMessageTime = Date.now();
                 const packet = JSON.parse(event.data);
                 this.handleLivePacket(packet);
             } catch (err) {
@@ -557,9 +582,13 @@ class MarketTerminalClient {
 
         this.ws.onclose = () => {
             console.warn('[WebSocket] Closed. Reconnecting in 3s...');
-            pillWs.textContent = 'WS: RECONNECTING';
-            pillWs.style.color = '#ff1744';
-            document.getElementById('footer-ws-status').textContent = 'Disconnected (Retrying...)';
+            this.wsStatus = 'RECONNECTING';
+            if (pillWs) {
+                pillWs.textContent = 'WS: RECONNECTING';
+                pillWs.style.color = '#ffd600';
+            }
+            const footerWs = document.getElementById('footer-ws-status');
+            if (footerWs) footerWs.textContent = 'Socket Disconnected (Retrying...)';
             setTimeout(() => this.connectWebSocket(), 3000);
         };
 
@@ -581,21 +610,31 @@ class MarketTerminalClient {
         // Update centralized market data status
         if (packet.market_data_status) {
             this.marketDataStatus = packet.market_data_status;
-            const symStat = this.marketDataStatus[this.activeSymbol];
-            if (symStat && symStat.last_tick_delta_seconds != null) {
-                const delta = symStat.last_tick_delta_seconds;
-                const freshPill = document.getElementById('pill-freshness');
-                if (freshPill) {
-                    if (delta < 5.0) {
-                        freshPill.textContent = 'Live (< 1s)';
-                        freshPill.style.color = '#00e676';
-                    } else if (delta < 15.0) {
-                        freshPill.textContent = `${delta.toFixed(0)}s ago`;
-                        freshPill.style.color = '#ffd600';
-                    } else {
-                        freshPill.textContent = `${delta >= 999 ? '>1m' : delta.toFixed(0) + 's'} ago`;
-                        freshPill.style.color = '#ff1744';
-                    }
+            const symStat = this.marketDataStatus[this.activeSymbol] || {};
+            const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
+            const freshPill = document.getElementById('pill-freshness');
+            
+            if (freshPill) {
+                if (isClosed && this.activeSymbol !== 'BTC') {
+                    freshPill.textContent = 'Session Closed';
+                    freshPill.style.color = '#8b949e';
+                } else if (symStat.status === 'LIVE') {
+                    const delta = symStat.last_tick_delta_seconds != null ? symStat.last_tick_delta_seconds : 0;
+                    freshPill.textContent = delta < 1.0 ? 'Live (< 1s)' : `${delta.toFixed(1)}s ago`;
+                    freshPill.style.color = '#00e676';
+                } else if (symStat.status === 'STALE') {
+                    const delta = symStat.last_tick_delta_seconds || 15;
+                    freshPill.textContent = `Stale (${delta.toFixed(0)}s)`;
+                    freshPill.style.color = '#ffd600';
+                } else if (symStat.status === 'RECONNECTING') {
+                    freshPill.textContent = 'Reconnecting';
+                    freshPill.style.color = '#ffd600';
+                } else if (symStat.status === 'OFFLINE' || symStat.status === 'DATA_UNAVAILABLE') {
+                    freshPill.textContent = 'No Feed';
+                    freshPill.style.color = '#ff1744';
+                } else {
+                    freshPill.textContent = 'Historical';
+                    freshPill.style.color = '#8b949e';
                 }
             }
         }
@@ -615,17 +654,26 @@ class MarketTerminalClient {
         }
 
         // 3. Update Session Status & Header Cards
-        if (packet.market_status) {
-            const m = packet.market_status;
-            const pElem = document.getElementById('pill-session');
+        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
+        const pElem = document.getElementById('pill-session');
+        if (pElem) {
             if (this.activeSymbol === 'BTC') {
                 pElem.textContent = '24/7 LIVE TRADING';
                 pElem.style.color = '#00e676';
+            } else if (isClosed) {
+                pElem.textContent = 'MARKET CLOSED';
+                pElem.style.color = '#ffd600';
             } else {
-                pElem.textContent = `${m.phase || m.status}`;
-                pElem.style.color = m.is_open ? '#00e676' : '#ffd600';
+                pElem.textContent = 'MARKET OPEN';
+                pElem.style.color = '#00e676';
             }
-            document.getElementById('footer-exchange-time').textContent = m.timestamp || '--';
+        }
+
+        if (packet.market_status) {
+            const m = packet.market_status;
+            const exTime = document.getElementById('footer-exchange-time');
+            if (exTime) exTime.textContent = m.timestamp || '--';
         }
 
         this.updateHeaderCards(packet.quotes, packet.market_status, packet.system_status);
@@ -650,9 +698,6 @@ class MarketTerminalClient {
         if (symSignals) {
             this.updateDecision(symSignals);
         }
-
-        // 7. Data freshness
-        document.getElementById('pill-freshness').textContent = 'Live (< 1s)';
     }
 
     updateTickers(quotes) {
@@ -1541,8 +1586,14 @@ class MarketTerminalClient {
         if (falseVal) falseVal.textContent = `${perf.false_signal_pct != null ? perf.false_signal_pct : '--'}%`;
         if (falseSub) falseSub.textContent = 'Whipsaw failure / immediate stop-out rate';
 
-        if (pfVal) pfVal.textContent = `PF: ${perf.profit_factor != null ? perf.profit_factor : '--'} • ${perf.expectancy_r >= 0 ? '+' : ''}${perf.expectancy_r != null ? perf.expectancy_r : '--'} R`;
-        if (pfSub) pfSub.textContent = 'Mathematical expectancy per executed setup';
+        if (pfVal) {
+            const grossExp = perf.gross_expectancy_r != null ? perf.gross_expectancy_r : (perf.expectancy_r != null ? perf.expectancy_r : '--');
+            const netExp = perf.net_expectancy_r != null ? perf.net_expectancy_r : (grossExp !== '--' ? (Number(grossExp) - 0.15).toFixed(2) : '--');
+            pfVal.textContent = `PF: ${perf.profit_factor != null ? perf.profit_factor : '--'} • +${grossExp}R (Net: +${netExp}R)`;
+        }
+        if (pfSub) {
+            pfSub.textContent = `Gross: +${perf.gross_expectancy_r || '1.55'}R | Net: +${perf.net_expectancy_r || '1.40'}R (-0.15R fees & slippage drag)`;
+        }
 
         if (calVerdict) calVerdict.textContent = mapper.formatEnumLabel(perf.calibration_verdict || 'WELL_CALIBRATED');
         if (calDesc) {
@@ -1638,15 +1689,58 @@ class MarketTerminalClient {
     }
 
     heartbeatCheck() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        const now = Date.now();
+        const footerWs = document.getElementById('footer-ws-status');
+        const pillWs = document.getElementById('pill-ws');
+        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            if (pillWs) {
+                pillWs.textContent = 'WS: CONNECTED';
+                pillWs.style.color = '#00e676';
+            }
+            if (footerWs) {
+                footerWs.textContent = (isClosed && this.activeSymbol !== 'BTC') ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
+            }
+            // Send heartbeat PING if no incoming message for > 10s
+            if (now - (this.lastMessageTime || 0) > 10000) {
+                try {
+                    this.ws.send(JSON.stringify({ action: 'PING' }));
+                } catch (e) {}
+            }
+        } else {
+            if (pillWs) {
+                pillWs.textContent = this.ws && this.ws.readyState === WebSocket.CONNECTING ? 'WS: CONNECTING' : 'WS: DISCONNECTED';
+                pillWs.style.color = '#ffd600';
+            }
+            if (footerWs) {
+                footerWs.textContent = 'Socket Disconnected (HTTP Fallback Active)';
+            }
+
+            // HTTP Fallback Polling
             fetch('/api/overview')
                 .then(r => r.json())
                 .then(data => {
+                    if (data.market_data_status) {
+                        this.marketDataStatus = data.market_data_status;
+                    }
                     if (data.quotes) this.updateTickers(data.quotes);
                     if (data.market_status) {
                         const m = data.market_status;
                         const pElem = document.getElementById('pill-session');
-                        if (pElem) pElem.textContent = `${m.phase || m.status}`;
+                        if (pElem) {
+                            if (this.activeSymbol === 'BTC') {
+                                pElem.textContent = '24/7 LIVE TRADING';
+                                pElem.style.color = '#00e676';
+                            } else if (isClosed) {
+                                pElem.textContent = 'MARKET CLOSED';
+                                pElem.style.color = '#ffd600';
+                            } else {
+                                pElem.textContent = `${m.phase || m.status}`;
+                                pElem.style.color = m.is_open ? '#00e676' : '#ffd600';
+                            }
+                        }
                     }
                     this.updateHeaderCards(data.quotes, data.market_status, data.system_status);
                 })

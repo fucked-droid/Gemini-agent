@@ -47,9 +47,9 @@
 
                 <!-- Connection & Session Status Pills -->
                 <div class="status-pills">
-                    <span class="pill pill-session" id="pill-session">SESSION: --</span>
+                    <span class="pill pill-session" id="pill-session">SESSION: CHECKING...</span>
                     <span class="pill pill-ws" id="pill-ws">WS: CONNECTING</span>
-                    <span class="pill pill-latency" id="pill-freshness">0.0s ago</span>
+                    <span class="pill pill-latency" id="pill-freshness">SYNCING...</span>
                 </div>
             </div>
         </div>
@@ -807,12 +807,12 @@
     <footer class="app-footer">
         <div class="footer-left">
             <span>Provider: <b id="footer-provider-name">DhanHQ Official v2 API</b></span>
-            <span>Mode: <b id="footer-feed-mode">OFFLINE / HISTORICAL</b></span>
+            <span>Mode: <b id="footer-feed-mode">INITIALIZING...</b></span>
             <span>Exchange Time: <b id="footer-exchange-time">--:--:--</b></span>
         </div>
         <div class="footer-right">
-            <span>WebSocket Status: <b id="footer-ws-status">Connecting...</b></span>
-            <span>Stream Health: <b id="footer-stream-health" class="text-yellow">Checking...</b></span>
+            <span>WebSocket: <b id="footer-ws-status">Connecting...</b></span>
+            <span>Stream Health: <b id="footer-stream-health" class="text-cyan">Syncing feed...</b></span>
         </div>
     </footer>
 
