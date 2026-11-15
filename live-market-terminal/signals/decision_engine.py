@@ -273,8 +273,23 @@ class TradingDecisionEngine:
         atr = indicators.get("atr", spot_price * 0.005)
         tight_risk = max(atr * 0.8, spot_price * 0.0025)
 
+        # Contradiction Prevention Gates:
+        # A BUY cannot trigger if higher timeframe is heavily bearish and spot is below VWAP
+        # unless an explicit SMC liquidity sweep or CHoCH reversal setup has confirmed.
+        has_bullish_smc_reversal = (smc_data and smc_data.get("has_smc_setup") and 
+                                    ("SWEEP" in smc_setup_type or "CHOCH" in smc_setup_type or "ORDER_BLOCK" in smc_setup_type))
+        has_bearish_smc_reversal = (smc_data and smc_data.get("has_smc_setup") and 
+                                    ("SWEEP" in smc_setup_type or "CHOCH" in smc_setup_type or "ORDER_BLOCK" in smc_setup_type))
+
         is_bullish = (bullish_score >= 5 and bullish_score > bearish_score + 2)
+        if is_bullish and bear_tf >= 3 and spot_price < vwap and not has_bullish_smc_reversal:
+            is_bullish = False
+            reasons_caution.append("Contradiction Filtered: Bullish intraday tick rejected against Bearish Higher-Timeframe trend.")
+
         is_bearish = (bearish_score >= 5 and bearish_score > bullish_score + 2)
+        if is_bearish and bull_tf >= 3 and spot_price > vwap and not has_bearish_smc_reversal:
+            is_bearish = False
+            reasons_caution.append("Contradiction Filtered: Bearish intraday tick rejected against Bullish Higher-Timeframe trend.")
 
         # Proper Entry vs Overextended Check
         dist_from_vwap_pts = abs(spot_price - vwap)
@@ -284,10 +299,18 @@ class TradingDecisionEngine:
             decision = "BUY"
             direction = "LONG"
             fixed_entry = smc_data.get("fixed_entry_price", round(spot_price, 2)) if smc_data else round(spot_price, 2)
-            stop_loss = smc_data.get("fixed_stop_loss", round(fixed_entry - tight_risk, 2)) if smc_data else round(fixed_entry - tight_risk, 2)
-            target_1 = smc_data.get("fixed_target_1", round(fixed_entry + (tight_risk * 2.0), 2)) if smc_data else round(fixed_entry + (tight_risk * 2.0), 2)
-            target_2 = smc_data.get("fixed_target_2", round(fixed_entry + (tight_risk * 3.2), 2)) if smc_data else round(fixed_entry + (tight_risk * 3.2), 2)
-            rr_ratio = smc_data.get("risk_reward_ratio", "1:2.4") if smc_data else "1:2.4"
+            fixed_entry = round(float(fixed_entry), 2)
+            risk_pts = round(max(tight_risk, 10.0), 2)
+            stop_loss = round(fixed_entry - risk_pts, 2)
+            target_1 = round(fixed_entry + (risk_pts * 1.5), 2)
+            target_2 = round(fixed_entry + (risk_pts * 2.5), 2)
+            rr_ratio = "1:2.0"
+
+            # Strict mathematical consistency validation
+            if not (stop_loss < fixed_entry < target_1 < target_2):
+                stop_loss = round(fixed_entry - risk_pts, 2)
+                target_1 = round(fixed_entry + (risk_pts * 1.5), 2)
+                target_2 = round(fixed_entry + (risk_pts * 2.5), 2)
 
             if not is_stretched:
                 recommendation = "STRONG_BUY (HIGH_PRIORITY - SMC PROPER ENTRY)"
@@ -317,9 +340,9 @@ class TradingDecisionEngine:
                 confidence = 85.0
 
                 fixed_entry = round(spot_price, 2)
-                stop_loss = round(spot_price + tight_risk, 2)
-                target_1 = round(spot_price - (tight_risk * 1.5), 2)
-                target_2 = round(spot_price - (tight_risk * 2.5), 2)
+                stop_loss = None
+                target_1 = None
+                target_2 = None
                 rr_ratio = "N/A (Short Disabled)"
 
                 reclaim_trigger = round(max(spot_price + tight_risk, vwap), 2)
@@ -339,11 +362,17 @@ class TradingDecisionEngine:
                 confidence = min(60.0 + (bearish_score * 4.0), 92.0)
 
                 fixed_entry = round(spot_price, 2)
-                stop_loss = round(max(spot_price + tight_risk, vwap * 1.001), 2)
-                risk_pts = stop_loss - spot_price
-                target_1 = round(spot_price - (risk_pts * 1.5), 2)
-                target_2 = round(spot_price - (risk_pts * 2.5), 2)
+                risk_pts = round(max(tight_risk, 10.0), 2)
+                stop_loss = round(fixed_entry + risk_pts, 2)
+                target_1 = round(fixed_entry - (risk_pts * 1.5), 2)
+                target_2 = round(fixed_entry - (risk_pts * 2.5), 2)
                 rr_ratio = "1:2.0"
+
+                # Strict mathematical consistency validation
+                if not (stop_loss > fixed_entry > target_1 > target_2):
+                    stop_loss = round(fixed_entry + risk_pts, 2)
+                    target_1 = round(fixed_entry - (risk_pts * 1.5), 2)
+                    target_2 = round(fixed_entry - (risk_pts * 2.5), 2)
 
                 reclaim_trigger = stop_loss
                 liquidity_zone = target_1
@@ -363,10 +392,10 @@ class TradingDecisionEngine:
             confidence = 50.0
 
             fixed_entry = round(spot_price, 2)
-            stop_loss = round(spot_price - tight_risk, 2)
-            target_1 = round(spot_price + (tight_risk * 1.5), 2)
-            target_2 = round(spot_price + (tight_risk * 2.5), 2)
-            rr_ratio = "1:1.5"
+            stop_loss = None
+            target_1 = None
+            target_2 = None
+            rr_ratio = "N/A"
 
             reclaim_trigger = round(max(spot_price + tight_risk, vwap), 2)
             liquidity_zone = round(spot_price - tight_risk, 2)
@@ -407,7 +436,10 @@ class TradingDecisionEngine:
         else:
             entry_conf_desc = "No confirmed entry trigger. Awaiting structural order block or FVG test."
 
-        inval_desc = f"Setup canceled if price closes beyond {curr_symbol}{stop_loss:,.1f} or order flow flips."
+        if stop_loss is not None:
+            inval_desc = f"Setup canceled if price closes beyond {curr_symbol}{stop_loss:,.1f} or order flow flips."
+        else:
+            inval_desc = "Execution locked or waiting for setup confirmation; no active stop-loss trigger."
 
         framework_breakdown = {
             "higher_timeframe_bias": {
@@ -483,7 +515,7 @@ class TradingDecisionEngine:
             "fixed_entry_price": fixed_entry,
             "entry_zone": entry_zone_str,
             "stop_loss": stop_loss,
-            "target_levels": [target_1, target_2],
+            "target_levels": [t for t in [target_1, target_2] if t is not None],
             "target_1": target_1,
             "target_2": target_2,
             "risk_reward": rr_ratio,

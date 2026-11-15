@@ -88,6 +88,9 @@ class MarketDataStatus(str, Enum):
     STALE = "STALE"
 
 
+# Indian Standard Time (UTC+05:30)
+IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
 class MarketStatusManager:
     """
     Centralized Authority for Feed Quality, Tick Freshness, Session Tracking,
@@ -109,6 +112,7 @@ class MarketStatusManager:
         self.last_tick_timestamps: Dict[str, float] = {
             "NIFTY": 0.0,
             "BANKNIFTY": 0.0,
+            "INDIAVIX": 0.0,
             "BTC": 0.0,
         }
         self.provider_connected: bool = False
@@ -119,6 +123,7 @@ class MarketStatusManager:
         self.subscription_status: Dict[str, bool] = {
             "NIFTY": False,
             "BANKNIFTY": False,
+            "INDIAVIX": False,
             "BTC": False,
         }
         self.stale_threshold_seconds: float = 15.0
@@ -163,7 +168,7 @@ class MarketStatusManager:
         If today is a trading day and time is past 09:15, returns today.
         Otherwise steps backward until a non-holiday weekday is found.
         """
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(IST_TZ)
         cur_date = ref_date or now.date()
         cur_time = (now.hour, now.minute)
 
@@ -177,28 +182,95 @@ class MarketStatusManager:
 
         return cur_date
 
+    def get_session_details(self, symbol: str = "NIFTY") -> Dict[str, Any]:
+        """Provides fine-grained session phase, market open status, and countdown message."""
+        sym = symbol.upper()
+        if sym in ("BTC", "BITCOIN", "BTCUSD"):
+            return {
+                "phase": "24_7_CONTINUOUS",
+                "is_open": True,
+                "status_text": "24/7 Global Crypto Active",
+                "message": "Continuous 24/7 global market stream active.",
+            }
+
+        now_ist = datetime.datetime.now(IST_TZ)
+        cur_date = now_ist.date()
+        cur_time = (now_ist.hour, now_ist.minute)
+        weekday = cur_date.weekday()
+
+        if weekday == 5:
+            return {
+                "phase": "WEEKEND",
+                "is_open": False,
+                "status_text": "MARKET CLOSED (Saturday)",
+                "message": "Market closed for the weekend. Regular trading resumes Monday at 09:15 AM IST.",
+            }
+        elif weekday == 6:
+            return {
+                "phase": "WEEKEND",
+                "is_open": False,
+                "status_text": "MARKET CLOSED (Sunday)",
+                "message": "Market closed for the weekend. Regular trading resumes Monday at 09:15 AM IST.",
+            }
+
+        date_str = cur_date.strftime("%Y-%m-%d")
+        if date_str in NSE_HOLIDAYS_2026:
+            return {
+                "phase": "EXCHANGE_HOLIDAY",
+                "is_open": False,
+                "status_text": "MARKET CLOSED (Exchange Holiday)",
+                "message": f"Market closed today for designated exchange holiday ({date_str}).",
+            }
+
+        pre_start = SESSION_TIMINGS.get("pre_market_start", (9, 0))
+        market_open = SESSION_TIMINGS.get("market_open", (9, 15))
+        market_close = SESSION_TIMINGS.get("market_close", (15, 30))
+        post_end = SESSION_TIMINGS.get("post_market_end", (16, 0))
+
+        if cur_time < pre_start:
+            return {
+                "phase": "AFTER_HOURS",
+                "is_open": False,
+                "status_text": "MARKET CLOSED (Before Market)",
+                "message": "Pre-market session opens today at 09:00 AM IST. Regular trading at 09:15 AM IST.",
+            }
+        elif pre_start <= cur_time < market_open:
+            return {
+                "phase": "PRE_MARKET",
+                "is_open": False,
+                "status_text": "PRE-MARKET (09:00 - 09:15 AM IST)",
+                "message": "Pre-market price discovery session active. Regular trading opens at 09:15 AM IST.",
+            }
+        elif market_open <= cur_time < market_close:
+            mins_left = (market_close[0] * 60 + market_close[1]) - (cur_time[0] * 60 + cur_time[1])
+            return {
+                "phase": "REGULAR_SESSION",
+                "is_open": True,
+                "status_text": "LIVE TRADING (09:15 - 15:30 IST)",
+                "message": f"Active regular trading session. Market closes in {mins_left // 60}h {mins_left % 60}m.",
+            }
+        elif market_close <= cur_time < post_end:
+            return {
+                "phase": "POST_MARKET",
+                "is_open": False,
+                "status_text": "POST-MARKET (15:30 - 16:00 IST)",
+                "message": "Post-market closing session. Execution locked.",
+            }
+        else:
+            return {
+                "phase": "AFTER_HOURS",
+                "is_open": False,
+                "status_text": "MARKET CLOSED (After Hours)",
+                "message": "Trading concluded for today. Next regular session opens tomorrow at 09:15 AM IST.",
+            }
+
     def is_session_active(self, symbol: str = "NIFTY") -> bool:
         """
         Determines if the financial exchange is currently in an active trading session.
         - BTC: Always True (24/7 continuous global market).
-        - NSE (NIFTY/BANKNIFTY): True only on non-holiday weekdays between 09:15 and 15:30 IST.
+        - NSE (NIFTY/BANKNIFTY/INDIAVIX): True only on non-holiday weekdays between 09:15 and 15:30 IST.
         """
-        sym = symbol.upper()
-        if sym in ("BTC", "BITCOIN", "BTCUSD"):
-            return True
-
-        now = datetime.datetime.now()
-        today = now.date()
-
-        # Check holiday or weekend
-        if self.is_holiday(today):
-            return False
-
-        curr_time = (now.hour, now.minute)
-        market_open = SESSION_TIMINGS.get("market_open", (9, 15))
-        market_close = SESSION_TIMINGS.get("market_close", (15, 30))
-
-        return market_open <= curr_time < market_close
+        return self.get_session_details(symbol)["is_open"]
 
     def get_operating_state(self, symbol: str = "NIFTY") -> OperatingState:
         """Returns the primary operating state: MARKET_OPEN or MARKET_CLOSED."""
@@ -349,6 +421,10 @@ class MarketStatusManager:
             validity = ValidityStatus.VALID
             details = f"Live real-time tick stream active (Tick latency: {tick_delta:.1f}s)"
 
+        sess = self.get_session_details(sym)
+        data_source_str = (self.provider_name if (session_active and self.provider_connected) 
+                           else f"Historical Parquet Master ({session_date})")
+
         return {
             "symbol": sym,
             "status": status.value,
@@ -359,16 +435,21 @@ class MarketStatusManager:
             "details": details,
             "provider_name": self.provider_name,
             "provider_connected": self.provider_connected,
+            "data_source": data_source_str,
             "websocket_connected": self.websocket_connected,
             "websocket_state": self.websocket_state,
             "subscription_active": self.subscription_status.get(sym, False),
             "session_active": session_active,
+            "session_phase": sess["phase"],
+            "session_status_text": sess["status_text"],
+            "session_message": sess["message"],
             "trading_session_date": session_date,
             "last_tick_timestamp": last_tick,
             "last_tick_delta_seconds": tick_delta,
             "is_stale": (freshness == FreshnessStatus.STALE),
             "is_market_closed": (operating_state == OperatingState.MARKET_CLOSED),
             "checked_at": now_dt.strftime("%Y-%m-%d %H:%M:%S IST"),
+            "last_updated": now_dt.strftime("%Y-%m-%d %H:%M:%S IST"),
         }
 
     def create_response_envelope(
@@ -387,6 +468,9 @@ class MarketStatusManager:
           - instrument
           - data_source
           - timestamp
+          - last_updated_timestamp
+          - session_phase
+          - session_message
           - trading_session_date
           - data_mode: LIVE, HISTORICAL, SIMULATED, UNAVAILABLE
           - freshness_status
@@ -397,8 +481,11 @@ class MarketStatusManager:
 
         envelope = {
             "instrument": instrument.upper(),
-            "data_source": data_source or stat.get("provider_name", "DhanHQ Official v2 API"),
+            "data_source": data_source or stat.get("data_source", stat.get("provider_name", "DhanHQ Official v2 API")),
             "timestamp": now_dt.strftime("%Y-%m-%d %H:%M:%S IST"),
+            "last_updated_timestamp": now_dt.strftime("%Y-%m-%d %H:%M:%S IST"),
+            "session_phase": stat.get("session_phase", "CLOSED"),
+            "session_message": stat.get("session_message", ""),
             "trading_session_date": stat.get("trading_session_date", now_dt.strftime("%Y-%m-%d")),
             "data_mode": (data_mode.value if data_mode else stat.get("data_mode", DataMode.HISTORICAL.value)),
             "operating_state": (operating_state.value if operating_state else stat.get("operating_state", OperatingState.MARKET_CLOSED.value)),

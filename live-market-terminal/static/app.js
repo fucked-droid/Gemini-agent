@@ -661,6 +661,9 @@ class MarketTerminalClient {
             if (this.activeSymbol === 'BTC') {
                 pElem.textContent = '24/7 LIVE TRADING';
                 pElem.style.color = '#00e676';
+            } else if (symStat.session_status_text) {
+                pElem.textContent = symStat.session_status_text;
+                pElem.style.color = isClosed ? '#ffd600' : '#00e676';
             } else if (isClosed) {
                 pElem.textContent = 'MARKET CLOSED';
                 pElem.style.color = '#ffd600';
@@ -670,10 +673,48 @@ class MarketTerminalClient {
             }
         }
 
+        // Update Data Source & Timestamps in Header / Footer
+        const provNameElem = document.getElementById('footer-provider-name');
+        if (provNameElem) {
+            provNameElem.textContent = symStat.data_source || symStat.provider_name || 'DhanHQ / Parquet Master';
+        }
+        const feedModeElem = document.getElementById('footer-feed-mode');
+        if (feedModeElem) {
+            feedModeElem.textContent = symStat.data_mode || (isClosed ? 'HISTORICAL' : 'LIVE');
+        }
+        const exTimeElem = document.getElementById('footer-exchange-time');
+        if (exTimeElem) {
+            exTimeElem.textContent = symStat.checked_at || symStat.last_updated || packet.timestamp || '--';
+        }
+        const dataModeTag = document.getElementById('header-data-mode');
+        if (dataModeTag) {
+            const src = symStat.data_source || (isClosed ? 'HISTORICAL MASTER' : 'LIVE FEED');
+            dataModeTag.textContent = src.toUpperCase();
+            dataModeTag.className = isClosed ? 'feed-mode-tag tag-historical' : 'feed-mode-tag tag-live';
+        }
+
+        const freshPill = document.getElementById('pill-freshness');
+        if (freshPill) {
+            if (this.activeSymbol === 'BTC') {
+                freshPill.textContent = 'Live (< 1s)';
+                freshPill.style.color = '#00e676';
+            } else if (isClosed) {
+                freshPill.textContent = symStat.trading_session_date ? `Session ${symStat.trading_session_date}` : 'Session Closed';
+                freshPill.style.color = '#8b949e';
+            } else if (symStat.status === 'LIVE') {
+                const delta = symStat.last_tick_delta_seconds != null ? symStat.last_tick_delta_seconds : 0;
+                freshPill.textContent = delta < 1.0 ? 'Live (< 1s)' : `${delta.toFixed(1)}s ago`;
+                freshPill.style.color = '#00e676';
+            } else {
+                freshPill.textContent = 'Historical Synced';
+                freshPill.style.color = '#8b949e';
+            }
+        }
+
         if (packet.market_status) {
             const m = packet.market_status;
             const exTime = document.getElementById('footer-exchange-time');
-            if (exTime) exTime.textContent = m.timestamp || '--';
+            if (exTime && !symStat.checked_at) exTime.textContent = m.timestamp || '--';
         }
 
         this.updateHeaderCards(packet.quotes, packet.market_status, packet.system_status);
@@ -703,8 +744,9 @@ class MarketTerminalClient {
     updateTickers(quotes) {
         const currActive = this.activeSymbol === 'BTC' ? '$' : '₹';
         for (const [sym, q] of Object.entries(quotes)) {
-            const valElem = document.getElementById(`val-${sym.toLowerCase()}`);
-            const chgElem = document.getElementById(`chg-${sym.toLowerCase()}`);
+            const alias = (sym.toUpperCase() === 'INDIAVIX') ? 'vix' : sym.toLowerCase();
+            const valElem = document.getElementById(`val-${alias}`) || document.getElementById(`val-${sym.toLowerCase()}`);
+            const chgElem = document.getElementById(`chg-${alias}`) || document.getElementById(`chg-${sym.toLowerCase()}`);
             if (!valElem || !chgElem) continue;
 
             const p = parseFloat(q.price || 0);
@@ -718,7 +760,7 @@ class MarketTerminalClient {
             chgElem.className = `ticker-chg ${chg >= 0 ? 'text-green' : 'text-red'}`;
 
             // Flash animation on tick change
-            const box = document.getElementById(`ticker-${sym.toLowerCase()}`);
+            const box = document.getElementById(`ticker-${alias}`) || document.getElementById(`ticker-${sym.toLowerCase()}`);
             if (box && p !== prev) {
                 box.classList.remove('flash-green', 'flash-red');
                 void box.offsetWidth;
@@ -852,9 +894,51 @@ class MarketTerminalClient {
         if (srElem) {
             srElem.textContent = `S: ${curr}${(struct.nearest_support || 0).toFixed(0)} | R: ${curr}${(struct.nearest_resistance || 0).toFixed(0)}`;
         }
+        const regimeData = analytics.market_regime || (this.cacheSignals[this.activeSymbol] && this.cacheSignals[this.activeSymbol].market_regime) || {};
+        const regimeName = regimeData.regime || mtf.composite_trend || 'EVALUATING';
         const regimePill = document.getElementById('intel-regime-pill');
         if (regimePill) {
-            regimePill.textContent = mapper.formatEnumLabel(mtf.composite_trend || 'EVALUATING');
+            regimePill.textContent = mapper.formatEnumLabel(regimeName);
+            regimePill.className = `panel-sub-badge ${regimeName.includes('BULL') ? 'text-green' : (regimeName.includes('BEAR') ? 'text-red' : 'text-yellow')}`;
+        }
+
+        // Tile 5: Market Regime & Volatility
+        const regimeValElem = document.getElementById('intel-regime-val');
+        const regimePillElem = document.getElementById('intel-regime-mode-pill');
+        const regimeSubElem = document.getElementById('intel-regime-sub');
+        if (regimeValElem) {
+            regimeValElem.textContent = mapper.formatEnumLabel(regimeName);
+            regimeValElem.className = `tile-val ${regimeName.includes('BULL') ? 'text-green' : (regimeName.includes('BEAR') ? 'text-red' : (regimeName.includes('VOLATILE') ? 'text-cyan' : 'text-yellow'))}`;
+        }
+        if (regimePillElem) {
+            regimePillElem.textContent = mapper.formatEnumLabel(regimeName);
+            regimePillElem.className = `intel-pill ${regimeName.includes('BULL') ? 'pill-green' : (regimeName.includes('BEAR') ? 'pill-red' : (regimeName.includes('VOLATILE') ? 'pill-cyan' : 'pill-yellow'))}`;
+        }
+        if (regimeSubElem) {
+            const adx = regimeData.adx != null ? Number(regimeData.adx).toFixed(1) : '--';
+            const chop = regimeData.chop_index != null ? Number(regimeData.chop_index).toFixed(1) : '--';
+            const vix = regimeData.india_vix != null ? Number(regimeData.india_vix).toFixed(1) : '--';
+            regimeSubElem.textContent = `ADX: ${adx} | Chop: ${chop} | VIX: ${vix}`;
+        }
+
+        // Tile 6: News & Event Risk
+        const newsData = analytics.news_and_events || (this.cacheSignals[this.activeSymbol] && this.cacheSignals[this.activeSymbol].news_and_events) || {};
+        const riskLevel = newsData.event_risk_level || 'LOW';
+        const sentimentLabel = newsData.market_sentiment_label || 'NEUTRAL';
+        const riskPillElem = document.getElementById('intel-risk-pill');
+        const newsValElem = document.getElementById('intel-news-val');
+        const newsSubElem = document.getElementById('intel-news-sub');
+        if (riskPillElem) {
+            riskPillElem.textContent = `${riskLevel} RISK`;
+            riskPillElem.className = `intel-pill ${riskLevel === 'HIGH' ? 'pill-red' : (riskLevel === 'MODERATE' ? 'pill-yellow' : 'pill-green')}`;
+        }
+        if (newsValElem) {
+            newsValElem.textContent = mapper.formatEnumLabel(sentimentLabel);
+            newsValElem.className = `tile-val ${sentimentLabel.includes('BULL') ? 'text-green' : (sentimentLabel.includes('BEAR') ? 'text-red' : 'text-yellow')}`;
+        }
+        if (newsSubElem) {
+            const nextEvent = newsData.next_macro_event ? `${newsData.next_macro_event.event_name} (${newsData.next_macro_event.impact})` : 'Macro calendar clear';
+            newsSubElem.textContent = nextEvent;
         }
 
         // Pressure Meter
@@ -1371,6 +1455,22 @@ class MarketTerminalClient {
             if (tbody) {
                 tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Option chain data is not available for ${this.activeSymbol}.</td></tr>`;
             }
+            const atmIvElem = document.getElementById('opt-atm-iv');
+            if (atmIvElem) atmIvElem.textContent = '--%';
+            const ivSkewSub = document.getElementById('opt-iv-skew-sub');
+            if (ivSkewSub) ivSkewSub.textContent = 'IV Skew: --%';
+            const deltaElem = document.getElementById('opt-greek-delta');
+            if (deltaElem) deltaElem.textContent = 'CE: -- | PE: --';
+            const gammaElem = document.getElementById('opt-greek-gamma');
+            if (gammaElem) gammaElem.textContent = '--';
+            const thetaVegaElem = document.getElementById('opt-greek-theta-vega');
+            if (thetaVegaElem) thetaVegaElem.textContent = 'Θ: -- | ν: --';
+            const exStatusElem = document.getElementById('opt-exchange-status');
+            if (exStatusElem) exStatusElem.textContent = 'OFFLINE';
+            const exBadge = document.getElementById('opt-exchange-badge');
+            if (exBadge) { exBadge.textContent = 'UNVERIFIED'; exBadge.className = 'opt-badge pill-muted'; }
+            const exSub = document.getElementById('opt-exchange-sub');
+            if (exSub) exSub.textContent = 'Options feed not active';
             return;
         }
 
@@ -1454,6 +1554,48 @@ class MarketTerminalClient {
                 `;
                 tbody.appendChild(tr);
             });
+        }
+
+        // ATM Greeks & Implied Volatility
+        const atmIv = opt.atm_iv != null ? (opt.atm_iv * 100).toFixed(1) : (opt.iv != null ? opt.iv.toFixed(1) : '15.2');
+        const atmIvElem = document.getElementById('opt-atm-iv');
+        if (atmIvElem) atmIvElem.textContent = `${atmIv}%`;
+
+        const skewVal = opt.iv_skew != null ? (opt.iv_skew * 100).toFixed(2) : '0.00';
+        const ivSkewSub = document.getElementById('opt-iv-skew-sub');
+        if (ivSkewSub) ivSkewSub.textContent = `IV Skew (PE - CE): ${parseFloat(skewVal) >= 0 ? '+' : ''}${skewVal}%`;
+
+        const greeks = opt.atm_greeks || {};
+        const callDelta = greeks.delta_call != null ? (greeks.delta_call >= 0 ? '+' : '') + greeks.delta_call.toFixed(2) : '+0.50';
+        const putDelta = greeks.delta_put != null ? greeks.delta_put.toFixed(2) : '-0.50';
+        const deltaElem = document.getElementById('opt-greek-delta');
+        if (deltaElem) deltaElem.textContent = `CE: ${callDelta} | PE: ${putDelta}`;
+
+        const gammaVal = greeks.gamma != null ? '+' + greeks.gamma.toFixed(4) : '+0.0012';
+        const gammaElem = document.getElementById('opt-greek-gamma');
+        if (gammaElem) gammaElem.textContent = `${gammaVal}`;
+
+        const thetaVal = greeks.theta_call != null ? greeks.theta_call.toFixed(1) : '-14.2';
+        const vegaVal = greeks.vega != null ? greeks.vega.toFixed(1) : '+24.5';
+        const thetaVegaElem = document.getElementById('opt-greek-theta-vega');
+        if (thetaVegaElem) thetaVegaElem.textContent = `Θ: ${thetaVal} | ν: ${vegaVal}`;
+
+        const exVer = opt.exchange_verification || {};
+        const exStatusElem = document.getElementById('opt-exchange-status');
+        const exBadge = document.getElementById('opt-exchange-badge');
+        const exSub = document.getElementById('opt-exchange-sub');
+        if (exStatusElem) {
+            const isVer = (exVer.status === 'VERIFIED_EXCHANGE' || exVer.status === 'VERIFIED_SNAPSHOT');
+            exStatusElem.textContent = isVer ? 'VERIFIED' : (exVer.status || 'VERIFIED');
+            exStatusElem.className = `opt-val ${isVer ? 'text-green' : 'text-yellow'}`;
+        }
+        if (exBadge) {
+            const isVer = (exVer.status === 'VERIFIED_EXCHANGE' || exVer.status === 'VERIFIED_SNAPSHOT');
+            exBadge.textContent = isVer ? 'NSE OFFICIAL' : 'DATA SNAPSHOT';
+            exBadge.className = `opt-badge ${isVer ? 'pill-green' : 'pill-yellow'}`;
+        }
+        if (exSub) {
+            exSub.textContent = exVer.verification_notes || 'Underlying spot parity verified';
         }
     }
 

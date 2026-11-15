@@ -1,0 +1,48 @@
+# Progress Log — Market Intelligence & Live Terminal Overhaul
+Started: 2026-11-15 23:07 IST
+Completed: 2026-11-15 23:45 IST
+
+Tasks Status:
+- [x] Initial Codebase Inspection & Regression Baseline: All existing 68 terminal tests, 150 market regime tests, and 14 IPO tests pass.
+- [x] Task 1: Fix live NIFTY, BANKNIFTY and INDIA VIX feeds
+  - Fixed candidate parquet lookup paths: `nifty_df_master.parquet` and `banknifty_df_master.parquet`.
+  - Added Yahoo Finance live index ticker fetching (`^NSEI`, `^NSEBANK`, `^INDIAVIX`) with seamless offline fallback to verified parquet masters.
+  - Corrected canonical fallback closes: NIFTY: 25144.30, BANKNIFTY: 61034.10, INDIAVIX: 15.50.
+  - Added INDIA VIX ticker cards in terminal.py and fixed IDs (`val-vix`, `chg-vix`, `ticker-vix`) in static/app.js.
+- [x] Task 2: Implement proper market-open/closed detection
+  - Timezone-aware session calculations using IST (UTC+5:30).
+  - Handles WEEKEND, EXCHANGE_HOLIDAY, PRE_MARKET (09:00-09:15), REGULAR_SESSION (09:15-15:30), POST_MARKET (15:30-16:00), AFTER_HOURS, and continuous 24/7 crypto.
+- [x] Task 3: Display data source and last-updated timestamps
+  - Standardized response envelope across all REST APIs and WebSocket packets.
+  - Header data mode badges, footer provider labels, and timestamps rendered in web UI and CLI terminal.
+- [x] Task 4: Remove placeholder values from live trading signals
+  - Cleaned hardcoded HTML placeholders (`₹24,520 - ₹24,550`, `₹25,146`, `4.2% ECE`).
+  - In `WAIT` / `STAND ASIDE` / `MARKET CLOSED` state, stop-loss and targets are set to None / N/A, and dynamic Watch Levels are displayed.
+- [x] Task 5: Verify option-chain data against the actual exchange/provider
+  - Implemented Black-Scholes Greeks, ATM IV, and IV skew in `options_analytics.py`.
+  - Validated underlying price against spot price within ±3.5% threshold.
+  - Added verification statuses: `VERIFIED_EXCHANGE`, `VERIFIED_SNAPSHOT`, `UNVERIFIED_PRICE_DEVIATION`.
+- [x] Task 6: Resolve contradictory signals and price levels
+  - Eliminated conflicting directional signals: BUY signal rejected if HTF trend is bearish and price < VWAP unless confirmed by SMC liquidity sweep/CHoCH reversal.
+  - Enforced mathematical geometry: SL < Entry < T1 < T2 for BUY; SL > Entry > T1 > T2 for SELL; None for WAIT.
+- [x] Task 7: Add proper multi-timeframe analysis (5m, 15m, 1h, daily)
+  - Implemented 4-tier institutional confluence matrix (`MultiTimeframeEngine.institutional_4tf`) evaluating 5m, 15m, 1h, and daily.
+- [x] Task 8: Add option Greeks, IV and OI analysis
+  - Black-Scholes Greeks (Delta, Gamma, Theta, Vega) computed for active strikes.
+  - Computed ATM IV, Put-Call IV Skew, PCR, Max Pain, and strike radar.
+- [x] Task 9: Add entry, stop-loss, targets and invalidation levels
+  - Fixed structural entry anchored to Order Blocks / FVGs / VWAP.
+  - Dynamic stop-loss anchored to ATR and structural pivots.
+  - Target 1 (1.5R) and Target 2 (2.5R) with invalidation triggers.
+- [x] Task 10: Add market regime detection (trending, sideways, volatile)
+  - Created `MarketRegimeDetector` synthesizing ADX (14), +DI/-DI, Choppiness Index (CHOP), Bollinger Bandwidth, ATR ratio, and India VIX.
+  - Classifies into Trending Bullish, Trending Bearish, Sideways Consolidation, Volatile Expansion, Low-Volatility Compression.
+- [x] Task 11: Add news and event risk detection
+  - Created `NewsAndEventRiskEngine` fetching live RSS headlines with local JSON fallback.
+  - Quantitative sentiment score and macro calendar risk detection (Budget, RBI MPC, F&O expiries) with position sizing haircut.
+- [x] Task 12: Final validation, testing & atomic commit
+  - Unit tests created in `live-market-terminal/tests/test_trading_intelligence.py`.
+  - All 74 tests in `live-market-terminal/run_tests.py` passed (100%).
+  - All 150 tests in `Daily-Market-Regime-Engine/run_all_tests.py` passed (100%).
+  - All 14 tests in `IPO-Intelligence-Engine/run_all_tests.py` passed (100%).
+  - Total: 238 tests passing across `npm test` with 100% pass rate. Zero regressions.

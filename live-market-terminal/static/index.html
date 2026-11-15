@@ -273,6 +273,26 @@
                             <div class="tile-val text-muted" id="intel-options-val">Unavailable</div>
                             <div class="tile-subtext" id="intel-options-sub">Put-Call Ratio & OI Distribution</div>
                         </div>
+
+                        <!-- 5. Market Regime & Volatility -->
+                        <div class="intel-tile" id="tile-market-regime">
+                            <div class="tile-header-row">
+                                <span class="tile-label">MARKET REGIME</span>
+                                <span class="intel-pill pill-yellow" id="intel-regime-mode-pill">SIDEWAYS</span>
+                            </div>
+                            <div class="tile-val text-yellow" id="intel-regime-val">Consolidation</div>
+                            <div class="tile-subtext" id="intel-regime-sub">ADX: -- | Chop: -- | VIX: --</div>
+                        </div>
+
+                        <!-- 6. News & Event Risk -->
+                        <div class="intel-tile" id="tile-news-risk">
+                            <div class="tile-header-row">
+                                <span class="tile-label">NEWS & EVENT RISK</span>
+                                <span class="intel-pill pill-green" id="intel-risk-pill">LOW RISK</span>
+                            </div>
+                            <div class="tile-val text-green" id="intel-news-val">Neutral Flow</div>
+                            <div class="tile-subtext" id="intel-news-sub">Macro calendar clear • No event lock</div>
+                        </div>
                     </div>
 
                     <!-- Market Breadth & Institutional Strip -->
@@ -477,14 +497,14 @@
                             </div>
                             <div class="smc-kv-row">
                                 <span class="k">Bullish Order Block:</span>
-                                <b class="v text-yellow" id="smc-bull-ob-range">₹24,520 - ₹24,550</b>
+                                <b class="v text-yellow" id="smc-bull-ob-range">₹--</b>
                             </div>
-                            <div class="smc-sub-detail" id="smc-bull-ob-mt">Mean Threshold (MT 50%): ₹24,535.00 • Unmitigated</div>
+                            <div class="smc-sub-detail" id="smc-bull-ob-mt">Mean Threshold (MT 50%): ₹-- • Unmitigated</div>
                             <div class="smc-kv-row" style="margin-top: 8px;">
                                 <span class="k">Bearish Order Block:</span>
-                                <b class="v text-red" id="smc-bear-ob-range">₹24,800 - ₹24,840</b>
+                                <b class="v text-red" id="smc-bear-ob-range">₹--</b>
                             </div>
-                            <div class="smc-sub-detail" id="smc-bear-ob-mt">Mean Threshold (MT 50%): ₹24,820.00 • Overhead Supply</div>
+                            <div class="smc-sub-detail" id="smc-bear-ob-mt">Mean Threshold (MT 50%): ₹-- • Overhead Supply</div>
                         </div>
 
                         <!-- Card 4: Fair Value Gaps -->
@@ -495,9 +515,9 @@
                             </div>
                             <div class="smc-kv-row">
                                 <span class="k">Bullish Imbalance (FVG):</span>
-                                <b class="v text-cyan" id="smc-bull-fvg-range">₹24,510 - ₹24,540</b>
+                                <b class="v text-cyan" id="smc-bull-fvg-range">₹--</b>
                             </div>
-                            <div class="smc-sub-detail" id="smc-bull-fvg-ce">Consequent Encroachment (CE 50%): ₹24,525.00</div>
+                            <div class="smc-sub-detail" id="smc-bull-fvg-ce">Consequent Encroachment (CE 50%): ₹--</div>
                             <div class="smc-kv-row" style="margin-top: 8px;">
                                 <span class="k">Bearish Imbalance (FVG):</span>
                                 <b class="v text-muted" id="smc-bear-fvg-range">None in Immediate Path</b>
@@ -602,6 +622,51 @@
                         </div>
                     </div>
 
+                    <!-- Option Greeks & Implied Volatility (IV) Strip -->
+                    <div class="options-summary-grid" style="margin-top: 14px; margin-bottom: 14px;">
+                        <div class="options-tile">
+                            <span class="opt-label">ATM IMPLIED VOLATILITY (IV)</span>
+                            <div class="opt-val-row">
+                                <span class="opt-val text-cyan" id="opt-atm-iv">--%</span>
+                                <span class="opt-badge pill-cyan" id="opt-iv-badge">ATM IV</span>
+                            </div>
+                            <div class="opt-sub" id="opt-iv-skew-sub">IV Skew (PE - CE): --%</div>
+                        </div>
+
+                        <div class="options-tile">
+                            <span class="opt-label">DELTA (&Delta;)</span>
+                            <div class="opt-val-row">
+                                <span class="opt-val text-green" id="opt-greek-delta">CE: +0.50 | PE: -0.50</span>
+                            </div>
+                            <div class="opt-sub">Sensitivity to spot price move</div>
+                        </div>
+
+                        <div class="options-tile">
+                            <span class="opt-label">GAMMA (&Gamma;)</span>
+                            <div class="opt-val-row">
+                                <span class="opt-val text-yellow" id="opt-greek-gamma">+0.0000</span>
+                            </div>
+                            <div class="opt-sub">Acceleration / Delta rate of change</div>
+                        </div>
+
+                        <div class="options-tile">
+                            <span class="opt-label">THETA (&Theta;) & VEGA (&nu;)</span>
+                            <div class="opt-val-row">
+                                <span class="opt-val text-red" id="opt-greek-theta-vega">&Theta;: -- | &nu;: --</span>
+                            </div>
+                            <div class="opt-sub">Daily decay (&Theta;) & Vol sensitivity (&nu;)</div>
+                        </div>
+
+                        <div class="options-tile">
+                            <span class="opt-label">EXCHANGE VERIFICATION</span>
+                            <div class="opt-val-row">
+                                <span class="opt-val text-green" id="opt-exchange-status">VERIFIED</span>
+                                <span class="opt-badge pill-green" id="opt-exchange-badge">NSE OFFICIAL</span>
+                            </div>
+                            <div class="opt-sub" id="opt-exchange-sub">Underlying spot parity verified</div>
+                        </div>
+                    </div>
+
                     <!-- Strike Radar Table -->
                     <div class="strike-radar-container">
                         <div class="radar-header">
@@ -636,7 +701,7 @@
                         <div class="orderflow-tile">
                             <span class="of-label">VOLUME PROFILE POC</span>
                             <div class="of-val-row">
-                                <span class="of-val text-gold" id="vp-poc-val">₹25,146</span>
+                                <span class="of-val text-gold" id="vp-poc-val">₹--</span>
                                 <span class="of-badge pill-gold">POINT OF CONTROL</span>
                             </div>
                             <div class="of-sub" id="vp-poc-sub">Price level with maximum traded contracts</div>
@@ -645,9 +710,9 @@
                         <div class="orderflow-tile">
                             <span class="of-label">VALUE AREA (70% BOUNDS)</span>
                             <div class="of-val-row">
-                                <span class="of-val text-cyan" id="vp-va-range">₹24,980 - ₹25,217</span>
+                                <span class="of-val text-cyan" id="vp-va-range">₹-- - ₹--</span>
                             </div>
-                            <div class="of-sub" id="vp-va-span-sub">VAH: ₹25,217 | VAL: ₹24,980 (Span: 237 pts)</div>
+                            <div class="of-sub" id="vp-va-span-sub">VAH: ₹-- | VAL: ₹-- (Span: -- pts)</div>
                         </div>
 
                         <div class="orderflow-tile">

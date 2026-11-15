@@ -146,7 +146,7 @@ class LiveTerminalApp:
         layout = Layout()
         layout.split_column(
             Layout(name="header", size=3),
-            Layout(name="cards", size=4),
+            Layout(name="cards", size=7),
             Layout(name="main", ratio=1),
             Layout(name="footer", size=7),
         )
@@ -254,6 +254,21 @@ class LiveTerminalApp:
         tbl.add_row("Market Structure", f"[{struct_color}]{struct_state}[/{struct_color}]")
         tbl.add_row("Nearest Levels", f"Support: ₹{struct.get('nearest_support', 0.0):,.1f} | Resist: ₹{struct.get('nearest_resistance', 0.0):,.1f}")
 
+        # Market Regime & Volatility
+        regime_data = analytics.get("market_regime", {})
+        regime_label = regime_data.get("regime", "SIDEWAYS_CONSOLIDATION")
+        regime_color = "green" if "BULLISH" in regime_label else ("red" if "BEARISH" in regime_label else ("yellow" if "SIDEWAYS" in regime_label else "cyan"))
+        adx_val = regime_data.get("adx", 0.0)
+        chop_val = regime_data.get("chop_index", 50.0)
+        tbl.add_row("Market Regime", f"[{regime_color}]{regime_label}[/{regime_color}] (ADX: {adx_val:.1f} | Chop: {chop_val:.1f})")
+
+        # News & Event Risk
+        news_data = analytics.get("news_and_events", {})
+        event_risk = news_data.get("event_risk_level", "LOW")
+        risk_color = "red" if event_risk == "HIGH" else ("yellow" if event_risk == "MODERATE" else "green")
+        news_sent = news_data.get("market_sentiment_label", "NEUTRAL")
+        tbl.add_row("News & Event Risk", f"[{risk_color}]Risk: {event_risk}[/{risk_color}] | Sentiment: [dim]{news_sent}[/dim]")
+
         # Breadth & Institutions
         adv = breadth.get("advances", 25)
         dec = breadth.get("declines", 25)
@@ -323,12 +338,16 @@ class LiveTerminalApp:
         color = "bold white on green" if dec == "BUY" else ("bold white on red" if dec == "SELL" else "bold black on yellow")
 
         entry = sig.get("entry_zone", "N/A")
-        sl = sig.get("stop_loss", 0.0)
-        t1 = sig.get("target_1", 0.0)
-        t2 = sig.get("target_2", 0.0)
+        sl = sig.get("stop_loss")
+        t1 = sig.get("target_1")
+        t2 = sig.get("target_2")
         rr = sig.get("risk_reward_ratio", "1:2.0")
         conf = sig.get("confidence_pct", 50.0)
         curr = "$" if self.primary_symbol == "BTC" else "₹"
+
+        sl_str = f"{curr}{sl:,.2f}" if sl is not None else "N/A"
+        t1_str = f"{curr}{t1:,.2f}" if t1 is not None else "N/A"
+        t2_str = f"{curr}{t2:,.2f}" if t2 is not None else "N/A"
 
         # SMC Details
         smc_meta = sig.get("smc_setup", {})
@@ -346,8 +365,8 @@ class LiveTerminalApp:
         decision_banner = (
             f"[{color}]  DECISION: {dec}  [/{color}]  (Confidence: [bold]{conf:.0f}%[/bold])\n"
             f"Setup: [cyan bold]{smc_type}[/cyan bold]\n"
-            f"Fixed Entry: [bold yellow]{entry.replace('₹', curr)}[/bold yellow] | SL: [red]{curr}{sl:,.2f}[/red]\n"
-            f"Targets: [green]T1: {curr}{t1:,.2f} | T2: {curr}{t2:,.2f}[/green] (R:R {rr})\n"
+            f"Fixed Entry: [bold yellow]{entry.replace('₹', curr)}[/bold yellow] | SL: [red]{sl_str}[/red]\n"
+            f"Targets: [green]T1: {t1_str} | T2: {t2_str}[/green] (R:R {rr})\n"
             f"Reversal Risk: [{rev_color}]{rev_level} ({rev_chance:.0f}% chance)[/{rev_color}]"
         )
 

@@ -10,6 +10,8 @@ from .multi_timeframe import MultiTimeframeEngine
 from .options_analytics import OptionsAnalytics
 from .performance_analytics import PerformanceAnalytics
 from .smc import SMCAnalyzer
+from .market_regime import MarketRegimeDetector
+from .news_and_events import NewsAndEventRiskEngine
 
 __all__ = [
     "TechnicalIndicators",
@@ -20,4 +22,6 @@ __all__ = [
     "OptionsAnalytics",
     "PerformanceAnalytics",
     "SMCAnalyzer",
+    "MarketRegimeDetector",
+    "NewsAndEventRiskEngine",
 ]

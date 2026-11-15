@@ -48,6 +48,8 @@ from analytics import (
     OptionsAnalytics,
     PerformanceAnalytics,
     SMCAnalyzer,
+    MarketRegimeDetector,
+    NewsAndEventRiskEngine,
 )
 from prediction import ForecastOrchestrator
 from signals import TradingDecisionEngine
@@ -113,6 +115,10 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
 
     candles_1m = client.get_historical_candles(sym, interval="1m", days=3)
     tf_suite = HistoricalDataManager.build_timeframe_suite(candles_1m)
+    if "daily" not in tf_suite:
+        daily_candles = client.get_historical_candles(sym, interval="1d", days=60)
+        if daily_candles is not None and not daily_candles.empty:
+            tf_suite["daily"] = daily_candles
     cache.set_candles(sym, tf_suite)
 
     candles_5m = tf_suite.get("5m", candles_1m)
@@ -148,6 +154,17 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
 
     status_mgr = get_market_status_manager()
     status_info = status_mgr.get_status(sym)
+
+    # 4-Tier Institutional Multi-Timeframe Analysis (5m, 15m, 1h, daily)
+    inst_4tf = MultiTimeframeEngine.institutional_4tf(tf_suite, spot_price=spot)
+
+    # Market Regime & Volatility Analysis
+    vix_quote = client.get_quote("INDIAVIX")
+    vix_val = float(vix_quote.get("price", 15.50)) if vix_quote else 15.50
+    regime = MarketRegimeDetector.detect_regime(candles_5m, india_vix=vix_val, symbol=sym)
+
+    # Macro & Financial News Risk Engine
+    news_events = NewsAndEventRiskEngine.get_market_news_and_events()
 
     decision = TradingDecisionEngine.evaluate(
         spot_price=spot,
@@ -221,11 +238,16 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
         "options_sentiment": opt_sentiment,
         "options_details": opt_analysis.get("details", ""),
         "options_pcr": opt_analysis.get("pcr_oi"),
+        "market_regime": regime.get("regime", "SIDEWAYS_CONSOLIDATION"),
+        "regime_strategy": regime.get("actionable_strategy", "NEUTRAL"),
         "data_status": status_info,
     }
 
-    # Attach market intelligence to decision payload
+    # Attach market intelligence, regime, news risk, and 4-tier MTF to decision payload
     decision["market_intelligence"] = market_intelligence
+    decision["market_regime"] = regime
+    decision["news_and_events"] = news_events
+    decision["multi_timeframe_4tf"] = inst_4tf
 
     # Store serializable analytics in cache
     cache.update_analytics(sym, {
@@ -238,6 +260,9 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
         "market_breadth": breadth,
         "institutional_flow": inst_flow,
         "mtf": mtf_data,
+        "institutional_4tf": inst_4tf,
+        "market_regime": regime,
+        "news_and_events": news_events,
         "market_intelligence": market_intelligence,
     })
     cache.update_forecasts(sym, forecasts)
@@ -277,6 +302,7 @@ async def continuous_market_monitor_task():
             market_data_status = {
                 "NIFTY": status_mgr.get_status("NIFTY"),
                 "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+                "INDIAVIX": status_mgr.get_status("INDIAVIX"),
                 "BTC": status_mgr.get_status("BTC"),
             }
 
@@ -291,6 +317,8 @@ async def continuous_market_monitor_task():
                 "analytics": cache.analytics.get("NIFTY", {}),
                 "forecasts": cache.forecasts.get("NIFTY", {}),
                 "signals": cache.signals.get("NIFTY", {}),
+                "market_regime": cache.analytics.get("NIFTY", {}).get("market_regime", {}),
+                "news_and_events": cache.analytics.get("NIFTY", {}).get("news_and_events", {}),
                 "analytics_by_symbol": cache.analytics,
                 "forecasts_by_symbol": cache.forecasts,
                 "signals_by_symbol": cache.signals,
@@ -334,6 +362,7 @@ def get_overview():
         "market_data_status": {
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "INDIAVIX": status_mgr.get_status("INDIAVIX"),
             "BTC": status_mgr.get_status("BTC"),
         },
         "system_status": snap.get("system_status", {}),
@@ -485,6 +514,76 @@ def get_orderflow(symbol: str = "NIFTY"):
         payload=of_data
     )
 
+@app.get("/api/regime")
+def get_market_regime(symbol: str = "NIFTY"):
+    """Returns detected market regime (Trending, Sideways, Volatile), ADX, Choppiness Index, and Bollinger Bandwidth."""
+    sym = symbol.upper()
+    if sym not in cache.analytics or not cache.analytics[sym] or "market_regime" not in cache.analytics[sym]:
+        process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
+    analytics_data = cache.analytics.get(sym, {})
+    regime_data = analytics_data.get("market_regime", {})
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=regime_data
+    )
+
+@app.get("/api/news")
+def get_news_and_events():
+    """Returns top financial headlines, sentiment score, and macroeconomic calendar risk events."""
+    news_data = NewsAndEventRiskEngine.get_market_news_and_events()
+    status_mgr = get_market_status_manager()
+    return status_mgr.create_response_envelope(
+        instrument="NIFTY",
+        payload=news_data
+    )
+
+@app.get("/api/greeks")
+def get_option_greeks(symbol: str = "NIFTY"):
+    """Returns ATM option Greeks (Delta, Gamma, Theta, Vega), IV Skew, and verified strike radar."""
+    sym = symbol.upper()
+    if sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
+        process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
+    analytics_data = cache.analytics.get(sym, {})
+    opt_data = analytics_data.get("options_intelligence", {})
+    greeks_data = {
+        "symbol": sym,
+        "underlying_price": opt_data.get("underlying_price"),
+        "atm_strike": opt_data.get("atm_strike"),
+        "atm_iv": opt_data.get("atm_iv"),
+        "iv_skew": opt_data.get("iv_skew"),
+        "atm_greeks": opt_data.get("atm_greeks", {}),
+        "exchange_verification": opt_data.get("exchange_verification", {}),
+        "sentiment": opt_data.get("sentiment"),
+        "pcr_oi": opt_data.get("pcr_oi"),
+        "max_pain": opt_data.get("max_pain"),
+        "strike_radar": opt_data.get("strike_radar", []),
+        "last_updated": opt_data.get("last_updated"),
+    }
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=greeks_data
+    )
+
+@app.get("/api/mtf")
+def get_multi_timeframe(symbol: str = "NIFTY"):
+    """Returns 4-tier institutional confluence matrix across 5m, 15m, 1h, and daily timeframes."""
+    sym = symbol.upper()
+    if sym not in cache.analytics or not cache.analytics[sym] or "institutional_4tf" not in cache.analytics[sym]:
+        process_symbol_pipeline(sym)
+    status_mgr = get_market_status_manager()
+    analytics_data = cache.analytics.get(sym, {})
+    mtf_payload = {
+        "symbol": sym,
+        "institutional_4tf": analytics_data.get("institutional_4tf", {}),
+        "mtf_summary": analytics_data.get("mtf", {}),
+    }
+    return status_mgr.create_response_envelope(
+        instrument=sym,
+        payload=mtf_payload
+    )
+
 @app.get("/api/health")
 def get_health():
     """Returns API health, data freshness, and active connections."""
@@ -497,6 +596,7 @@ def get_health():
         "market_data_status": {
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "INDIAVIX": status_mgr.get_status("INDIAVIX"),
             "BTC": status_mgr.get_status("BTC"),
         },
     }
@@ -523,6 +623,7 @@ async def websocket_live_stream(websocket: WebSocket):
         market_data_status = {
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "INDIAVIX": status_mgr.get_status("INDIAVIX"),
             "BTC": status_mgr.get_status("BTC"),
         }
         init_packet = {
@@ -535,6 +636,8 @@ async def websocket_live_stream(websocket: WebSocket):
             "analytics": cache.analytics.get("NIFTY", {}),
             "forecasts": cache.forecasts.get("NIFTY", {}),
             "signals": cache.signals.get("NIFTY", {}),
+            "market_regime": cache.analytics.get("NIFTY", {}).get("market_regime", {}),
+            "news_and_events": cache.analytics.get("NIFTY", {}).get("news_and_events", {}),
             "analytics_by_symbol": cache.analytics,
             "forecasts_by_symbol": cache.forecasts,
             "signals_by_symbol": cache.signals,
