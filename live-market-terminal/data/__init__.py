@@ -7,6 +7,7 @@ from .dhan_client import DhanClient
 from .historical_data import HistoricalDataManager
 from .market_cache import MarketCache, get_global_cache
 from .crypto_feed import CryptoFeed
+from .public_nse_feed import PublicNSEFeed
 from .market_status_manager import (
     MarketStatusManager,
     MarketDataStatus,
@@ -24,6 +25,7 @@ __all__ = [
     "MarketCache",
     "get_global_cache",
     "CryptoFeed",
+    "PublicNSEFeed",
     "MarketStatusManager",
     "MarketDataStatus",
     "OperatingState",

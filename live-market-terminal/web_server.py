@@ -31,6 +31,8 @@ from config import (
     DEFAULT_REFRESH_INTERVAL_SECONDS,
     MONITORED_INSTRUMENTS,
     TOP_NIFTY_CONSTITUENTS,
+    get_ist_now,
+    IST_TZ,
 )
 from data import (
     DhanClient,
@@ -283,7 +285,7 @@ async def continuous_market_monitor_task():
             # Broadcast live packet to all connected web clients
             packet = {
                 "type": "TICK_UPDATE",
-                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
+                "timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
                 "quotes": quotes,
                 "market_status": market_status,
                 "market_data_status": market_data_status,
@@ -527,7 +529,7 @@ async def websocket_live_stream(websocket: WebSocket):
         }
         init_packet = {
             "type": "INITIAL_STATE",
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
+            "timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
             "quotes": snap.get("quotes", {}),
             "market_status": snap.get("market_status", {}),
             "market_data_status": market_data_status,

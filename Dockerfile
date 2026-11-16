@@ -2,13 +2,16 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=8000 \
+    TZ=Asia/Kolkata
 
 WORKDIR /app
 
-# Install minimal build tools
+# Install minimal build tools & timezone data
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies

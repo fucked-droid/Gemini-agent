@@ -14,6 +14,7 @@ import urllib.request
 import pandas as pd
 import numpy as np
 
+from config import get_ist_now
 from .market_status_manager import get_market_status_manager
 
 logger = logging.getLogger("CryptoFeed")
@@ -43,7 +44,7 @@ class CryptoFeed:
         if cls._cached_quote and (now_ts - cls._quote_cache_ts < 5.0):
             return cls._cached_quote
 
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
+        now_str = get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST")
 
         # 1. Try Coinbase
         try:
@@ -192,7 +193,7 @@ class CryptoFeed:
         base_p = base_quote["price"]
         num_bars = limit
         step_min = k_interval
-        end_time = datetime.datetime.now().replace(second=0, microsecond=0)
+        end_time = get_ist_now().replace(second=0, microsecond=0)
         times = [end_time - datetime.timedelta(minutes=step_min * (num_bars - i)) for i in range(num_bars)]
 
         np.random.seed(int(time.time()) % 10000)

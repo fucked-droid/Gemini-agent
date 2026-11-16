@@ -29,6 +29,7 @@ from config import (
     DEFAULT_REFRESH_INTERVAL_SECONDS,
     MONITORED_INSTRUMENTS,
     TOP_NIFTY_CONSTITUENTS,
+    get_ist_now,
 )
 from data import DhanClient, HistoricalDataManager, get_global_cache
 from analytics import (
@@ -176,7 +177,7 @@ class LiveTerminalApp:
         left = Text.from_markup(f"[bold white]LIVE INDIAN MARKET TERMINAL[/bold white] | [cyan]{self.primary_symbol}[/cyan]")
         mid = Text.from_markup(f"Status: [{phase_color}]{phase}[/{phase_color}] | Feed: [{api_color}]{api_status}[/{api_color}]")
         right = Text.from_markup(
-            f"Updated: [bold]{datetime.datetime.now().strftime('%H:%M:%S')}[/bold] | "
+            f"Updated: [bold]{get_ist_now().strftime('%H:%M:%S')}[/bold] | "
             f"Next: [bold yellow]{int(self.next_refresh_countdown)}s[/bold yellow]"
         )
 

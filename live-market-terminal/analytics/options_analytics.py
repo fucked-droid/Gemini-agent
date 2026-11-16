@@ -17,6 +17,8 @@ import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
+from config import get_ist_now
+
 logger = logging.getLogger("OptionsAnalytics")
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -380,7 +382,7 @@ class OptionsAnalytics:
         """Validates if timestamp is from today's trading session."""
         if not timestamp_str:
             return False
-        today_str = datetime.datetime.now().strftime("%d-%b-%Y")
+        today_str = get_ist_now().strftime("%d-%b-%Y")
         return timestamp_str.startswith(today_str)
 
     @classmethod

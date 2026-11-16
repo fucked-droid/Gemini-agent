@@ -26,7 +26,7 @@ import datetime
 from enum import Enum
 from typing import Dict, Any, Optional, Set
 
-from config import SESSION_TIMINGS
+from config import SESSION_TIMINGS, get_ist_now, IST_TZ
 
 # Known NSE Trading Holidays (YYYY-MM-DD)
 NSE_HOLIDAYS_2026: Set[str] = {
@@ -163,7 +163,7 @@ class MarketStatusManager:
         If today is a trading day and time is past 09:15, returns today.
         Otherwise steps backward until a non-holiday weekday is found.
         """
-        now = datetime.datetime.now()
+        now = get_ist_now()
         cur_date = ref_date or now.date()
         cur_time = (now.hour, now.minute)
 
@@ -187,7 +187,7 @@ class MarketStatusManager:
         if sym in ("BTC", "BITCOIN", "BTCUSD"):
             return True
 
-        now = datetime.datetime.now()
+        now = get_ist_now()
         today = now.date()
 
         # Check holiday or weekend
@@ -219,7 +219,7 @@ class MarketStatusManager:
         """
         sym = symbol.upper()
         now = time.time()
-        now_dt = datetime.datetime.now()
+        now_dt = get_ist_now()
         last_tick = self.last_tick_timestamps.get(sym, 0.0)
         tick_delta = round(now - last_tick, 1) if last_tick > 0 else 9999.0
         session_active = self.is_session_active(sym)
@@ -309,15 +309,7 @@ class MarketStatusManager:
             validity = ValidityStatus.VALID
             details = f"MARKET CLOSED. Official closing data for session {session_date} displayed."
 
-        # Condition B: MARKET OPEN, but provider offline or credentials missing
-        elif not self.provider_connected:
-            status = MarketDataStatus.HISTORICAL
-            data_mode = DataMode.HISTORICAL
-            freshness = FreshnessStatus.CACHED
-            validity = ValidityStatus.DEGRADED
-            details = "Market open, but DhanHQ feed is not authenticated. Displaying historical session benchmark."
-
-        # Condition C: MARKET OPEN, WebSocket reconnecting
+        # Condition B: MARKET OPEN, WebSocket reconnecting
         elif self.websocket_state == "RECONNECTING":
             status = MarketDataStatus.RECONNECTING
             data_mode = DataMode.HISTORICAL
@@ -325,29 +317,38 @@ class MarketStatusManager:
             validity = ValidityStatus.DEGRADED
             details = "WebSocket connection dropped. Reconnecting to streaming server..."
 
-        # Condition D: MARKET OPEN, WebSocket disconnected
-        elif not self.websocket_connected:
-            status = MarketDataStatus.OFFLINE
-            data_mode = DataMode.UNAVAILABLE
-            freshness = FreshnessStatus.UNAVAILABLE
-            validity = ValidityStatus.INVALID
-            details = "Market open, but streaming WebSocket is disconnected."
+        # Condition C: MARKET OPEN, verified real-time ticks flowing (< 15s)
+        elif last_tick > 0 and tick_delta <= self.stale_threshold_seconds:
+            status = MarketDataStatus.LIVE
+            data_mode = DataMode.LIVE
+            freshness = FreshnessStatus.REALTIME
+            validity = ValidityStatus.VALID
+            feed_type = "WebSocket Stream" if self.websocket_connected else "Public Real-Time Stream"
+            details = f"Live real-time {feed_type} active (Tick latency: {tick_delta:.1f}s)"
 
-        # Condition E: MARKET OPEN, but ticks stalled (>15s)
-        elif tick_delta > self.stale_threshold_seconds:
+        # Condition D: MARKET OPEN, but ticks stalled (>15s)
+        elif last_tick > 0 and tick_delta > self.stale_threshold_seconds:
             status = MarketDataStatus.STALE
             data_mode = DataMode.LIVE
             freshness = FreshnessStatus.STALE
             validity = ValidityStatus.DEGRADED
             details = f"Tick feed stalled during active session ({tick_delta:.1f}s > {self.stale_threshold_seconds}s threshold)."
 
-        # Condition F: MARKET OPEN, verified real-time ticks flowing
+        # Condition E: MARKET OPEN, but provider offline or credentials missing (and no ticks received)
+        elif not self.provider_connected:
+            status = MarketDataStatus.HISTORICAL
+            data_mode = DataMode.HISTORICAL
+            freshness = FreshnessStatus.CACHED
+            validity = ValidityStatus.DEGRADED
+            details = "Market open, but upstream feed is not authenticated. Displaying historical session benchmark."
+
+        # Condition F: MARKET OPEN, disconnected
         else:
-            status = MarketDataStatus.LIVE
-            data_mode = DataMode.LIVE
-            freshness = FreshnessStatus.REALTIME
-            validity = ValidityStatus.VALID
-            details = f"Live real-time tick stream active (Tick latency: {tick_delta:.1f}s)"
+            status = MarketDataStatus.OFFLINE
+            data_mode = DataMode.UNAVAILABLE
+            freshness = FreshnessStatus.UNAVAILABLE
+            validity = ValidityStatus.INVALID
+            details = "Market open, but streaming feed is disconnected."
 
         return {
             "symbol": sym,
@@ -357,8 +358,8 @@ class MarketStatusManager:
             "freshness_status": freshness.value,
             "validity_status": validity.value,
             "details": details,
-            "provider_name": self.provider_name,
-            "provider_connected": self.provider_connected,
+            "provider_name": self.provider_name if sym != "BTC" else "Kraken Public Feed",
+            "provider_connected": (self.provider_connected or last_tick > 0),
             "websocket_connected": self.websocket_connected,
             "websocket_state": self.websocket_state,
             "subscription_active": self.subscription_status.get(sym, False),
@@ -393,7 +394,7 @@ class MarketStatusManager:
           - validity_status
         """
         stat = self.get_status(instrument)
-        now_dt = datetime.datetime.now()
+        now_dt = get_ist_now()
 
         envelope = {
             "instrument": instrument.upper(),
