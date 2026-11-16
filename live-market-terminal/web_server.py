@@ -256,24 +256,20 @@ async def continuous_market_monitor_task():
     logger.info("Continuous Market Monitoring Worker started.")
     while True:
         try:
-            # 1. Update Market Session Status
-            market_status = client.get_market_status()
-            cache.update_market_status(market_status)
-
-            # 2. Update Quotes for Monitored Instruments
+            # 1. Update Quotes for Monitored Instruments FIRST so ticks are recorded
             quotes = {}
             for sym in MONITORED_INSTRUMENTS:
                 q = client.get_quote(sym)
                 quotes[sym] = q
                 cache.update_quote(sym, q)
 
+            # 2. Update Market Session Status (reflecting recent ticks)
+            market_status = client.get_market_status()
+            cache.update_market_status(market_status)
+
             # 3. Process NIFTY, BANKNIFTY, and Bitcoin (24/7 Live Data)
             for sym in ["NIFTY", "BANKNIFTY", "BTC"]:
                 process_symbol_pipeline(sym, quotes.get(sym))
-
-            api_state = "LIVE_AUTHENTICATED" if client.is_authenticated else "OFFLINE_SIMULATION"
-            cache.update_system_status(api_state, "Continuous market stream active.")
-            cache.save_to_snapshot()
 
             status_mgr = get_market_status_manager()
             market_data_status = {
@@ -281,6 +277,11 @@ async def continuous_market_monitor_task():
                 "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
                 "BTC": status_mgr.get_status("BTC"),
             }
+
+            any_live = any(s.get("status") == "LIVE" for s in market_data_status.values())
+            api_state = "LIVE_STREAM" if any_live else ("LIVE_AUTHENTICATED" if client.is_authenticated else "OFFLINE_SIMULATION")
+            cache.update_system_status(api_state, "Continuous market stream active.")
+            cache.save_to_snapshot()
 
             # Broadcast live packet to all connected web clients
             packet = {
@@ -324,6 +325,27 @@ def serve_index():
         with open(index_file, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h2>Live Indian Market Terminal</h2><p>Static index.html loading...</p>")
+
+@app.get("/api/health")
+@app.get("/api/version")
+def get_health():
+    """Health check and runtime diagnostic endpoint for deployment verification."""
+    now_ist = get_ist_now()
+    status_mgr = get_market_status_manager()
+    return {
+        "status": "healthy",
+        "app": "live-market-terminal",
+        "version": "1.2.0-live-public-feed",
+        "timestamp_ist": now_ist.strftime("%Y-%m-%d %H:%M:%S IST"),
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "is_authenticated": client.is_authenticated,
+        "provider_name": client.provider_name,
+        "market_data_status": {
+            "NIFTY": status_mgr.get_status("NIFTY"),
+            "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
+            "BTC": status_mgr.get_status("BTC"),
+        },
+    }
 
 @app.get("/api/overview")
 def get_overview():

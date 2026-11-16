@@ -1,13 +1,14 @@
 FROM python:3.12-slim
 
-ENV PYTHONUNBUFFERED=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000 \
     TZ=Asia/Kolkata
 
 WORKDIR /app
 
-# Install minimal build tools & timezone data
+# Install minimal build tools & timezone data non-interactively
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     tzdata \

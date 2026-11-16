@@ -25,7 +25,17 @@ class PublicNSEFeed:
     Requires no API keys, has zero authentication overhead, and operates continuously.
     """
 
-    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    )
+    HEADERS = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://finance.yahoo.com/",
+        "Origin": "https://finance.yahoo.com",
+    }
 
     INDEX_MAP = {
         "NIFTY": {"ticker": "%5ENSEI", "name": "NIFTY 50", "sec_id": "13", "exchange": "NSE_INDEX"},
@@ -37,6 +47,9 @@ class PublicNSEFeed:
     _quote_cache_ts: Dict[str, float] = {}
     _cached_candles: Dict[str, pd.DataFrame] = {}
     _candle_cache_ts: Dict[str, float] = {}
+
+    QUOTE_CACHE_TTL = 8.0   # Cache quotes for 8 seconds to prevent Yahoo 429 rate-limiting
+    CANDLE_CACHE_TTL = 25.0 # Cache candles for 25 seconds for multi-timeframe analytics
 
     @classmethod
     def resolve_ticker(cls, symbol: str) -> Optional[Dict[str, Any]]:
@@ -54,7 +67,7 @@ class PublicNSEFeed:
     def get_live_quote(cls, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Fetches live real-time quote for NIFTY, BANKNIFTY, or INDIAVIX.
-        Caches responses for 2.0s to prevent spamming while keeping sub-second tick responsiveness.
+        Caches responses for QUOTE_CACHE_TTL to prevent spamming while keeping responsive.
         """
         meta = cls.resolve_ticker(symbol)
         if not meta:
@@ -62,15 +75,15 @@ class PublicNSEFeed:
 
         sym = symbol.upper()
         now_ts = time.time()
-        if sym in cls._cached_quotes and (now_ts - cls._quote_cache_ts.get(sym, 0) < 2.0):
+        if sym in cls._cached_quotes and (now_ts - cls._quote_cache_ts.get(sym, 0) < cls.QUOTE_CACHE_TTL):
             return cls._cached_quotes[sym]
 
         ticker = meta["ticker"]
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1m&range=1d"
 
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": cls.USER_AGENT, "Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
+            req = urllib.request.Request(url, headers=cls.HEADERS)
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
                 data = json.loads(resp.read().decode())
                 chart_res = data.get("chart", {}).get("result", [])
                 if not chart_res:
@@ -136,7 +149,7 @@ class PublicNSEFeed:
         sym = symbol.upper()
         now_ts = time.time()
         cache_key = f"{sym}_{interval.lower()}"
-        if cache_key in cls._cached_candles and (now_ts - cls._candle_cache_ts.get(cache_key, 0) < 10.0):
+        if cache_key in cls._cached_candles and (now_ts - cls._candle_cache_ts.get(cache_key, 0) < cls.CANDLE_CACHE_TTL):
             return cls._cached_candles[cache_key]
 
         ticker = meta["ticker"]
@@ -160,14 +173,49 @@ class PublicNSEFeed:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval={y_interval}&range={y_range}"
 
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": cls.USER_AGENT, "Accept": "application/json"})
-            with urllib.request.urlopen(req, timeout=4.5) as resp:
+            req = urllib.request.Request(url, headers=cls.HEADERS)
+            with urllib.request.urlopen(req, timeout=5.0) as resp:
                 data = json.loads(resp.read().decode())
                 chart_res = data.get("chart", {}).get("result", [])
                 if not chart_res:
                     return cls._cached_candles.get(cache_key)
 
                 res = chart_res[0]
+                m = res.get("meta", {})
+                price = float(m.get("regularMarketPrice", 0.0))
+                if price > 0:
+                    prev_close = float(m.get("chartPreviousClose", m.get("previousClose", price)))
+                    change = price - prev_close
+                    change_pct = (change / prev_close * 100.0) if prev_close != 0 else 0.0
+                    day_high = float(m.get("regularMarketDayHigh", price))
+                    day_low = float(m.get("regularMarketDayLow", price))
+                    vol = int(m.get("regularMarketVolume", 1000000))
+                    if vol <= 0:
+                        vol = 1000000
+                    now_ist = get_ist_now()
+                    now_str = now_ist.strftime("%Y-%m-%d %H:%M:%S IST")
+
+                    # Opportunistically prime live quote from candle response
+                    cls._cached_quotes[sym] = {
+                        "symbol": sym,
+                        "name": meta["name"],
+                        "security_id": meta["sec_id"],
+                        "exchange": meta["exchange"],
+                        "price": round(price, 2),
+                        "change": round(change, 2),
+                        "change_pct": round(change_pct, 2),
+                        "high": round(day_high, 2),
+                        "low": round(day_low, 2),
+                        "open": round(float(m.get("regularMarketDayLow", price)), 2),
+                        "close": round(prev_close, 2),
+                        "volume": vol,
+                        "timestamp": now_str,
+                        "is_live": True,
+                        "source": "YAHOO_NSE_PUBLIC_LIVE",
+                    }
+                    cls._quote_cache_ts[sym] = now_ts
+                    get_market_status_manager().record_tick(sym)
+
                 timestamps = res.get("timestamp", [])
                 quote_data = res.get("indicators", {}).get("quote", [{}])[0]
 
