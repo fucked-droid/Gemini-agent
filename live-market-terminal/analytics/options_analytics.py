@@ -21,6 +21,8 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
+from config import get_ist_now
+
 logger = logging.getLogger("OptionsAnalytics")
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -164,7 +166,7 @@ class OptionsAnalytics:
 
         # Check freshness of cached file
         is_fresh = cls._check_data_freshness(data_timestamp_str)
-        if not is_fresh and not is_provider_live and not allow_sample:
+        if not is_fresh and (not is_provider_live or not allow_sample):
             # Mandate: If feed is unavailable/stale, dependent components must display UNAVAILABLE
             return cls._get_unavailable_payload(
                 symbol=sym,
@@ -575,7 +577,7 @@ class OptionsAnalytics:
         """Validates if timestamp is from today's trading session."""
         if not timestamp_str:
             return False
-        today_str = datetime.datetime.now().strftime("%d-%b-%Y")
+        today_str = get_ist_now().strftime("%d-%b-%Y")
         return timestamp_str.startswith(today_str)
 
     @classmethod

@@ -15,6 +15,7 @@ import pandas as pd
 from config import (
     MARKET_STATE_SNAPSHOT_FILE,
     DEFAULT_REFRESH_INTERVAL_SECONDS,
+    get_ist_now,
 )
 from .market_status_manager import get_market_status_manager
 
@@ -144,7 +145,7 @@ class MarketCache:
                 "system_status": {
                     **self.system_status,
                     "data_freshness_seconds": freshness,
-                    "current_timestamp": time.strftime("%Y-%m-%d %H:%M:%S IST"),
+                    "current_timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
                 },
             }
 

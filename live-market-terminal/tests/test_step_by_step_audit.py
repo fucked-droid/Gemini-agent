@@ -11,6 +11,7 @@ import sys
 import time
 import datetime
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -60,12 +61,14 @@ class TestStepByStepAudit(unittest.TestCase):
         """Market closed: shows MARKET_CLOSED, HISTORICAL mode, official session date, EXECUTION LOCKED."""
         # Force provider offline / closed market simulation
         self.mgr.set_provider_status(False)
-        stat = self.mgr.get_status("NIFTY")
+        self.mgr.last_tick_timestamps["NIFTY"] = 0.0
+        with patch.object(self.mgr, "is_session_active", return_value=False):
+            stat = self.mgr.get_status("NIFTY")
 
-        self.assertIn(stat["data_mode"], [DataMode.HISTORICAL.value, "HISTORICAL"])
-        self.assertTrue(stat["is_market_closed"] or not stat["session_active"])
-        self.assertIn("trading_session_date", stat)
-        self.assertNotEqual(stat["status"], MarketDataStatus.LIVE.value)
+            self.assertIn(stat["data_mode"], [DataMode.HISTORICAL.value, "HISTORICAL"])
+            self.assertTrue(stat["is_market_closed"] or not stat["session_active"])
+            self.assertIn("trading_session_date", stat)
+            self.assertNotEqual(stat["status"], MarketDataStatus.LIVE.value)
 
         # Decision engine should produce EXECUTION LOCKED
         dec = TradingDecisionEngine.evaluate(
@@ -125,6 +128,7 @@ class TestStepByStepAudit(unittest.TestCase):
         """Market open but WS disconnected: detects disconnection and does not show LIVE."""
         self.mgr.set_provider_status(True)
         self.mgr.set_websocket_status(False, "DISCONNECTED")
+        self.mgr.last_tick_timestamps["NIFTY"] = 0.0
 
         # Simulate active session check
         if self.mgr.is_session_active("NIFTY"):

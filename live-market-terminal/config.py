@@ -6,8 +6,17 @@ indicator parameters, and logging configuration.
 
 import os
 import sys
+import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Indian Standard Time (IST) Timezone Definition (UTC+5:30)
+IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
+
+def get_ist_now() -> datetime.datetime:
+    """Returns current datetime in Indian Standard Time (IST, UTC+5:30)."""
+    return datetime.datetime.now(IST_TZ)
+
 
 # Base paths
 PROJECT_ROOT = Path(__file__).resolve().parent

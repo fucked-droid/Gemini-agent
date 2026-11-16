@@ -39,6 +39,8 @@ import datetime
 import logging
 from typing import Dict, Any, List, Optional
 
+from config import get_ist_now
+
 logger = logging.getLogger("TradingDecisionEngine")
 
 
@@ -70,7 +72,7 @@ class TradingDecisionEngine:
         Calculates a FIXED structural entry point, why the setup works, and reversal risk.
         Respects operational states (MARKET CLOSED -> EXECUTION LOCKED; DATA MISSING -> DATA UNAVAILABLE).
         """
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST")
+        now_str = get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST")
         sym = symbol.upper()
         curr_symbol = "$" if sym == "BTC" else "₹"
 

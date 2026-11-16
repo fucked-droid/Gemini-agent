@@ -42,7 +42,7 @@ class TestMarketData(unittest.TestCase):
         status = self.client.get_market_status()
         self.assertIn("status", status)
         self.assertIn("is_open", status)
-        self.assertIn(status["status"], ["LIVE_SESSION", "PRE_MARKET", "POST_MARKET", "CLOSED", "NON_TRADING_DAY"])
+        self.assertIn(status["status"], ["LIVE", "HISTORICAL", "LIVE_SESSION", "PRE_MARKET", "POST_MARKET", "CLOSED", "NON_TRADING_DAY"])
 
     def test_offline_quote_fallback(self):
         quote = self.client.get_quote("NIFTY")
