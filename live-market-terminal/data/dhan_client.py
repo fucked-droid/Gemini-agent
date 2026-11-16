@@ -286,7 +286,7 @@ class DhanClient:
                                 "open": round(open_p, 2),
                                 "close": round(prev, 2),
                                 "volume": vol,
-                                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S IST"),
+                                "timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
                                 "is_live": True,
                                 "source": "YAHOO_FINANCE_LIVE",
                             }
