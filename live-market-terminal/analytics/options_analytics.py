@@ -166,7 +166,7 @@ class OptionsAnalytics:
 
         # Check freshness of cached file
         is_fresh = cls._check_data_freshness(data_timestamp_str)
-        if not is_fresh and (not is_provider_live or not allow_sample):
+        if not is_fresh and not (is_provider_live or allow_sample):
             # Mandate: If feed is unavailable/stale, dependent components must display UNAVAILABLE
             return cls._get_unavailable_payload(
                 symbol=sym,

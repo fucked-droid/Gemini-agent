@@ -8,6 +8,7 @@ from .historical_data import HistoricalDataManager
 from .market_cache import MarketCache, get_global_cache
 from .crypto_feed import CryptoFeed
 from .public_nse_feed import PublicNSEFeed
+from .free_broker_adapters import ShoonyaAdapter, AngelOneAdapter
 from .market_status_manager import (
     MarketStatusManager,
     MarketDataStatus,
@@ -26,6 +27,8 @@ __all__ = [
     "get_global_cache",
     "CryptoFeed",
     "PublicNSEFeed",
+    "ShoonyaAdapter",
+    "AngelOneAdapter",
     "MarketStatusManager",
     "MarketDataStatus",
     "OperatingState",

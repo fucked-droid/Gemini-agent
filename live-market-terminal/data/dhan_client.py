@@ -5,6 +5,8 @@ REST quote fetching, historical candle downloads, market status detection,
 and graceful offline fallback.
 """
 
+import os
+import json
 import time
 import datetime
 import logging
@@ -50,11 +52,35 @@ class DhanClient:
         self._dhanhq_sdk = None
 
         self.provider_name = "DhanHQ Official v2 API"
+        self._free_adapter = None
         self._init_sdk()
 
     def _init_sdk(self):
-        """Initializes DhanHQ official SDK if credentials exist."""
+        """Initializes broker SDK (DhanHQ, Shoonya, Angel One) or falls back to Free Public Feed."""
         mgr = get_market_status_manager()
+        self._free_adapter = None
+
+        provider_env = os.getenv("DATA_PROVIDER", "").upper()
+        if provider_env == "SHOONYA" or os.getenv("SHOONYA_USER_ID"):
+            from .free_broker_adapters import ShoonyaAdapter
+            self._free_adapter = ShoonyaAdapter()
+            if self._free_adapter.connect():
+                self.is_authenticated = True
+                self.provider_name = self._free_adapter.name
+                mgr.set_provider_status(True, self.provider_name)
+                logger.info(f"Initialized free broker adapter: {self.provider_name}")
+                return
+
+        if provider_env in ("ANGEL_ONE", "SMARTAPI") or os.getenv("ANGEL_API_KEY"):
+            from .free_broker_adapters import AngelOneAdapter
+            self._free_adapter = AngelOneAdapter()
+            if self._free_adapter.connect():
+                self.is_authenticated = True
+                self.provider_name = self._free_adapter.name
+                mgr.set_provider_status(True, self.provider_name)
+                logger.info(f"Initialized free broker adapter: {self.provider_name}")
+                return
+
         if self.client_id and self.access_token:
             try:
                 from dhanhq import dhanhq
@@ -69,7 +95,7 @@ class DhanClient:
                 self.provider_name = "Public Market Feed (NSE Real-Time)"
                 mgr.set_provider_status(True, "Public Market Feed (NSE Real-Time)")
         else:
-            logger.info("No DhanHQ credentials provided. Using Public Real-Time NSE Feed.")
+            logger.info("No private broker credentials provided. Using Free Public Real-Time NSE Feed.")
             self.is_authenticated = False
             self.provider_name = "Public Market Feed (NSE Real-Time)"
             mgr.set_provider_status(True, "Public Market Feed (NSE Real-Time)")
@@ -184,6 +210,12 @@ class DhanClient:
         meta = self.instrument_master.resolve_instrument(symbol)
         sec_id = meta["security_id"]
         segment = meta["segment"]
+
+        # Try free broker adapter if connected (Shoonya / Angel One)
+        if getattr(self, "_free_adapter", None) and self._free_adapter.is_connected:
+            broker_quote = self._free_adapter.get_quote(meta["symbol"])
+            if broker_quote:
+                return broker_quote
 
         # Try live Dhan API if authenticated
         if self.is_authenticated:

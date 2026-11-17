@@ -51,6 +51,77 @@ class PublicNSEFeed:
     QUOTE_CACHE_TTL = 8.0   # Cache quotes for 8 seconds to prevent Yahoo 429 rate-limiting
     CANDLE_CACHE_TTL = 25.0 # Cache candles for 25 seconds for multi-timeframe analytics
 
+    _nse_session = None
+    _nse_session_ts = 0.0
+
+    @classmethod
+    def _get_nse_session(cls):
+        """Initializes or returns cached requests session with official NSE India cookies."""
+        now = time.time()
+        if cls._nse_session is None or (now - cls._nse_session_ts > 600):
+            try:
+                import requests
+                s = requests.Session()
+                s.headers.update({
+                    "User-Agent": cls.USER_AGENT,
+                    "Accept": "*/*",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.nseindia.com/",
+                })
+                s.get("https://www.nseindia.com", timeout=3.5)
+                cls._nse_session = s
+                cls._nse_session_ts = now
+            except Exception as e:
+                logger.debug(f"NSE session initialization failed: {e}")
+                return None
+        return cls._nse_session
+
+    @classmethod
+    def _get_quote_from_nse_official(cls, sym: str, meta: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Fetches quote directly from NSE India official allIndices endpoint."""
+        try:
+            session = cls._get_nse_session()
+            if not session:
+                return None
+            resp = session.get("https://www.nseindia.com/api/allIndices", timeout=3.5)
+            if resp.status_code == 200:
+                data = resp.json().get("data", [])
+                target_name = "NIFTY 50" if sym == "NIFTY" else ("NIFTY BANK" if sym == "BANKNIFTY" else "INDIA VIX")
+                for row in data:
+                    if row.get("index") == target_name:
+                        price = float(row.get("last", 0.0))
+                        if price > 0:
+                            prev_close = float(row.get("previousClose", price))
+                            chg = float(row.get("variation", price - prev_close))
+                            chg_pct = float(row.get("percentChange", (chg / prev_close * 100) if prev_close else 0.0))
+                            high = float(row.get("high", price))
+                            low = float(row.get("low", price))
+                            open_p = float(row.get("open", price))
+                            quote = {
+                                "symbol": sym,
+                                "name": meta["name"],
+                                "security_id": meta["sec_id"],
+                                "exchange": meta["exchange"],
+                                "price": round(price, 2),
+                                "change": round(chg, 2),
+                                "change_pct": round(chg_pct, 2),
+                                "high": round(high, 2),
+                                "low": round(low, 2),
+                                "open": round(open_p, 2),
+                                "close": round(prev_close, 2),
+                                "volume": 1000000,
+                                "timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
+                                "is_live": True,
+                                "source": "NSE_INDIA_OFFICIAL_LIVE",
+                            }
+                            cls._cached_quotes[sym] = quote
+                            cls._quote_cache_ts[sym] = time.time()
+                            get_market_status_manager().record_tick(sym)
+                            return quote
+        except Exception as e:
+            logger.debug(f"NSE official quote fetch failed for {sym}: {e}")
+        return None
+
     @classmethod
     def resolve_ticker(cls, symbol: str) -> Optional[Dict[str, Any]]:
         """Resolves symbol to ticker mapping and metadata."""
@@ -132,6 +203,9 @@ class PublicNSEFeed:
 
         except Exception as e:
             logger.debug(f"Public quote fetch failed for {symbol}: {e}")
+            nse_quote = cls._get_quote_from_nse_official(sym, meta)
+            if nse_quote:
+                return nse_quote
             return cls._cached_quotes.get(sym)
 
     @classmethod
