@@ -354,10 +354,9 @@ def serve_index():
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h2>Live Indian Market Terminal</h2><p>Static index.html loading...</p>")
 
-@app.get("/api/health")
 @app.get("/api/version")
-def get_health():
-    """Health check and runtime diagnostic endpoint for deployment verification."""
+def get_version():
+    """Version and runtime diagnostic endpoint for deployment verification."""
     now_ist = get_ist_now()
     status_mgr = get_market_status_manager()
     return {
@@ -628,6 +627,69 @@ def get_health():
         instrument="NIFTY",
         payload=health_data
     )
+
+@app.post("/api/feed/sync")
+async def sync_external_feed(packet: Dict[str, Any]):
+    """
+    Ingests live market feed snapshot or tick data from local trading terminal or data pump.
+    Updates in-memory market cache and immediately broadcasts live packet to all connected browser clients.
+    """
+    try:
+        quotes = packet.get("quotes")
+        status_mgr = get_market_status_manager()
+
+        if quotes and isinstance(quotes, dict):
+            for sym, q in quotes.items():
+                if isinstance(q, dict):
+                    cache.update_quote(sym, q)
+                    if q.get("is_live"):
+                        status_mgr.record_tick(sym)
+                        status_mgr.set_provider_status(True, q.get("source", "Live Bridge Feed"))
+
+        analytics = packet.get("analytics")
+        if analytics and isinstance(analytics, dict):
+            for sym, data in analytics.items():
+                cache.update_analytics(sym, data)
+
+        signals = packet.get("signals")
+        if signals and isinstance(signals, dict):
+            for sym, sig in signals.items():
+                cache.update_signals(sym, sig)
+
+        forecasts = packet.get("forecasts")
+        if forecasts and isinstance(forecasts, dict):
+            for sym, fcasts in forecasts.items():
+                cache.update_forecasts(sym, fcasts)
+
+        market_status = packet.get("market_status")
+        if market_status and isinstance(market_status, dict):
+            cache.update_market_status(market_status)
+
+        cache.update_system_status("LIVE_STREAM", "Continuous live feed synced from authenticated bridge.")
+
+        # Broadcast packet to all connected WebSockets
+        broadcast_packet = {
+            "type": "TICK_UPDATE",
+            "timestamp": get_ist_now().strftime("%Y-%m-%d %H:%M:%S IST"),
+            "quotes": cache.quotes,
+            "market_status": cache.market_status,
+            "active_symbol": packet.get("active_symbol", "NIFTY"),
+            "analytics": cache.analytics.get("NIFTY", {}),
+            "forecasts": cache.forecasts.get("NIFTY", {}),
+            "signals": cache.signals.get("NIFTY", {}),
+            "market_regime": cache.analytics.get("NIFTY", {}).get("market_regime", {}),
+            "news_and_events": cache.analytics.get("NIFTY", {}).get("news_and_events", {}),
+            "analytics_by_symbol": cache.analytics,
+            "forecasts_by_symbol": cache.forecasts,
+            "signals_by_symbol": cache.signals,
+            "system_status": cache.system_status,
+        }
+        await manager.broadcast(broadcast_packet)
+
+        return {"status": "success", "message": "Feed synchronized and broadcast to all connected clients."}
+    except Exception as e:
+        logger.error(f"Error in sync_external_feed: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 # ==========================================
 # WEBSOCKET STREAMING ENDPOINT

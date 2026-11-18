@@ -134,7 +134,7 @@ class OptionsAnalytics:
         # 3. Resolve authoritative option chain data
         raw_data, source_type = cls._load_option_chain_data(sym)
 
-        if not raw_data:
+        if not raw_data or (not allow_sample and source_type in ("SAMPLE_FILE", "GENERIC_CACHE")):
             return cls._get_unavailable_payload(
                 symbol=sym,
                 spot_price=spot_price,
