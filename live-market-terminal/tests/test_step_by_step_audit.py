@@ -53,6 +53,7 @@ class TestStepByStepAudit(unittest.TestCase):
     def setUp(self):
         self.mgr = get_market_status_manager()
         self.cache = get_global_cache()
+        self.mgr.last_tick_timestamps = {"NIFTY": 0.0, "BANKNIFTY": 0.0, "BTC": 0.0}
 
     # ==========================================================
     # SCENARIO 1: Market closed, historical data available
@@ -70,22 +71,22 @@ class TestStepByStepAudit(unittest.TestCase):
             self.assertIn("trading_session_date", stat)
             self.assertNotEqual(stat["status"], MarketDataStatus.LIVE.value)
 
-        # Decision engine should produce EXECUTION LOCKED
-        dec = TradingDecisionEngine.evaluate(
-            spot_price=25144.30,
-            indicators={"vwap": 25140.0, "ema10": 25145.0, "ema20": 25135.0, "atr": 50.0},
-            mtf_data={"composite_trend": "BULLISH", "bullish_timeframes": 4, "bearish_timeframes": 1},
-            order_flow={"order_flow_state": "NEUTRAL", "buyer_percentage": 50.0, "is_cvd_available": True, "session_cvd": 1200},
-            market_structure={"structure_state": "BULLISH_EXPANSION"},
-            market_breadth={"breadth_score": 0.20, "advances": 30, "declines": 20},
-            buy_priority_mode=True,
-            symbol="NIFTY",
-            market_status=stat,
-        )
-        self.assertEqual(dec["decision"], "EXECUTION LOCKED")
-        self.assertEqual(dec["clean_recommendation"], "EXECUTION LOCKED")
-        self.assertFalse(dec["has_valid_setup"])
-        self.assertIn("LOCKED", dec["entry_zone"])
+            # Decision engine should produce EXECUTION LOCKED
+            dec = TradingDecisionEngine.evaluate(
+                spot_price=25144.30,
+                indicators={"vwap": 25140.0, "ema10": 25145.0, "ema20": 25135.0, "atr": 50.0},
+                mtf_data={"composite_trend": "BULLISH", "bullish_timeframes": 4, "bearish_timeframes": 1},
+                order_flow={"order_flow_state": "NEUTRAL", "buyer_percentage": 50.0, "is_cvd_available": True, "session_cvd": 1200},
+                market_structure={"structure_state": "BULLISH_EXPANSION"},
+                market_breadth={"breadth_score": 0.20, "advances": 30, "declines": 20},
+                buy_priority_mode=True,
+                symbol="NIFTY",
+                market_status=stat,
+            )
+            self.assertEqual(dec["decision"], "EXECUTION LOCKED")
+            self.assertEqual(dec["clean_recommendation"], "EXECUTION LOCKED")
+            self.assertFalse(dec["has_valid_setup"])
+            self.assertIn("LOCKED", dec["entry_zone"])
 
     # ==========================================================
     # SCENARIO 2: Market closed, no historical data available
@@ -155,7 +156,7 @@ class TestStepByStepAudit(unittest.TestCase):
     # ==========================================================
     def test_scenario_6_options_feed_unavailable_graceful_degradation(self):
         """When options feed is absent, all dependent metrics show UNAVAILABLE / None."""
-        opt = OptionsAnalytics.get_options_intelligence("NIFTY", allow_sample=False)
+        opt = OptionsAnalytics.get_options_intelligence("UNKNOWN_SYMBOL", allow_sample=False)
         self.assertEqual(opt["status"], "UNAVAILABLE")
         self.assertEqual(opt["sentiment"], "Unavailable")
         self.assertIsNone(opt["pcr_oi"])

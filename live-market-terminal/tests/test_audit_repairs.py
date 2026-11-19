@@ -161,8 +161,8 @@ class TestAuditRepairs(unittest.TestCase):
     # ==========================================================
     def test_missing_options_data_graceful_degradation(self):
         """Ensures options analytics returns UNAVAILABLE when live feed is absent."""
-        # Unauthenticated offline mode for BANKNIFTY
-        res = OptionsAnalytics.get_options_intelligence("BANKNIFTY", spot_price=51200.0, allow_sample=False)
+        # Unauthenticated offline mode for an unsupported or absent symbol
+        res = OptionsAnalytics.get_options_intelligence("UNKNOWN_SYMBOL", spot_price=51200.0, allow_sample=False)
         self.assertIsInstance(res, dict)
         self.assertEqual(res["sentiment"], "Unavailable")
         self.assertIn(res["status"], ["UNAVAILABLE", "NO_CRYPTO_OPTIONS"])

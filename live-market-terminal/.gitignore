@@ -10,7 +10,8 @@ __pycache__/
 .pytest_cache/
 
 # Local data cache & logs
-data/cache/
+data/cache/*
+!data/cache/option_chain_*.json
 logs/
 *.parquet
 *.csv

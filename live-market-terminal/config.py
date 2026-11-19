@@ -8,8 +8,6 @@ import os
 import sys
 import datetime
 from pathlib import Path
-from dotenv import load_dotenv
-
 # Indian Standard Time (IST) Timezone Definition (UTC+5:30)
 IST_TZ = datetime.timezone(datetime.timedelta(hours=5, minutes=30), name="IST")
 
@@ -23,8 +21,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 WORKSPACE_ROOT = PROJECT_ROOT.parent
 
 # Load environment variables (.env in live-market-terminal or parent workspace)
-load_dotenv(PROJECT_ROOT / ".env")
-load_dotenv(WORKSPACE_ROOT / ".env")
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env")
+    load_dotenv(WORKSPACE_ROOT / ".env")
+except ImportError:
+    pass
 
 # DhanHQ Credentials
 DHAN_CLIENT_ID = os.getenv("DHAN_CLIENT_ID", "")

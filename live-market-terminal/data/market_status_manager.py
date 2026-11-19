@@ -390,16 +390,23 @@ class MarketStatusManager:
             details = "WebSocket connection dropped. Reconnecting to streaming server..."
 
         # Condition C: MARKET OPEN, verified real-time ticks flowing (< 15s)
-        elif last_tick > 0 and tick_delta <= self.stale_threshold_seconds:
-            status = MarketDataStatus.LIVE
-            data_mode = DataMode.LIVE
-            freshness = FreshnessStatus.REALTIME
-            validity = ValidityStatus.VALID
-            feed_type = "WebSocket Stream" if self.websocket_connected else "Public Real-Time Stream"
-            details = f"Live real-time {feed_type} active (Tick latency: {tick_delta:.1f}s)"
+        elif self.provider_connected and last_tick > 0 and tick_delta <= self.stale_threshold_seconds:
+            if not self.websocket_connected and self.websocket_state == "DISCONNECTED" and "DhanHQ" in self.provider_name:
+                status = MarketDataStatus.OFFLINE
+                data_mode = DataMode.HISTORICAL
+                freshness = FreshnessStatus.STALE
+                validity = ValidityStatus.DEGRADED
+                details = "DhanHQ streaming feed disconnected."
+            else:
+                status = MarketDataStatus.LIVE
+                data_mode = DataMode.LIVE
+                freshness = FreshnessStatus.REALTIME
+                validity = ValidityStatus.VALID
+                feed_type = "WebSocket Stream" if self.websocket_connected else "Public Real-Time Stream"
+                details = f"Live real-time {feed_type} active (Tick latency: {tick_delta:.1f}s)"
 
         # Condition D: MARKET OPEN, but ticks stalled (>15s)
-        elif last_tick > 0 and tick_delta > self.stale_threshold_seconds:
+        elif self.provider_connected and last_tick > 0 and tick_delta > self.stale_threshold_seconds:
             status = MarketDataStatus.STALE
             data_mode = DataMode.LIVE
             freshness = FreshnessStatus.STALE

@@ -279,8 +279,20 @@ async def continuous_market_monitor_task():
     and broadcasts live updates over WebSockets every few seconds.
     """
     logger.info("Continuous Market Monitoring Worker started.")
+    last_options_refresh = 0.0
+
     while True:
         try:
+            now_ts = time.time()
+            # Periodic background options refresh every 45 seconds for active indices
+            if now_ts - last_options_refresh > 45.0:
+                try:
+                    from data.options_feed import NSEOptionChainFeed
+                    NSEOptionChainFeed.refresh_all(["NIFTY", "BANKNIFTY"])
+                    last_options_refresh = now_ts
+                except Exception as oe:
+                    logger.warning(f"Background options refresh error: {oe}")
+
             # 1. Update Quotes for Monitored Instruments FIRST so ticks are recorded
             quotes = {}
             for sym in MONITORED_INSTRUMENTS:
@@ -482,10 +494,10 @@ def get_forecasts(symbol: str = "NIFTY"):
     )
 
 @app.get("/api/options")
-def get_options(symbol: str = "NIFTY"):
+def get_options(symbol: str = "NIFTY", refresh: bool = False):
     """Returns Put-Call Ratio, Open Interest shifts, Max Pain, and strike radar."""
     sym = symbol.upper()
-    if sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
+    if refresh or sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
         process_symbol_pipeline(sym)
     status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})

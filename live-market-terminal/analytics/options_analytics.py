@@ -229,7 +229,7 @@ class OptionsAnalytics:
                     continue
 
                 # Filter by nearest expiry if present on the row
-                row_expiry = r.get("expiryDate")
+                row_expiry = r.get("expiryDate") or r.get("expiryDates")
                 if active_expiry and row_expiry and row_expiry != active_expiry:
                     continue
 
@@ -523,45 +523,46 @@ class OptionsAnalytics:
 
     @classmethod
     def _load_option_chain_data(cls, symbol: str) -> Tuple[Optional[Dict[str, Any]], str]:
-        """Loads authoritative option chain data for the instrument, trying live NSE then cache."""
-        # 1. Attempt live fetch from NSE if network is active
-        try:
-            from data.market_status_manager import get_market_status_manager
-            mgr = get_market_status_manager()
-            if mgr.is_session_active(symbol):
-                url = f"https://www.nseindia.com/api/option-chain-indices?symbol={symbol.upper()}"
-                req = urllib.request.Request(
-                    url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                        "Accept": "application/json",
-                    },
-                )
-                with urllib.request.urlopen(req, timeout=4) as resp:
-                    if resp.status == 200:
-                        data = json.loads(resp.read().decode("utf-8"))
-                        if "records" in data:
-                            return data, "LIVE_NSE_EXCHANGE"
-        except Exception:
-            pass
+        """Loads authoritative option chain data for the instrument."""
+        sym = symbol.upper()
 
-        # 2. Check live cache first
-        live_cache = WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache" / f"option_chain_{symbol.lower()}.json"
-        if live_cache.exists():
+        # 1. Try Live Feed / Cache through NSEOptionChainFeed for standard indices
+        if sym in ("NIFTY", "BANKNIFTY"):
             try:
-                with open(live_cache, "r", encoding="utf-8") as fp:
-                    return json.load(fp), "LIVE_CACHE"
-            except Exception:
-                pass
+                from data.options_feed import NSEOptionChainFeed
+                data = NSEOptionChainFeed.fetch_live_chain(sym)
+                if data and data.get("records", {}).get("data"):
+                    return data, "LIVE_FEED"
+            except Exception as e:
+                logger.debug(f"Live option feed resolution skipped for {sym}: {e}")
 
-        generic_cache = WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache" / "option_chain.json"
-        if generic_cache.exists():
-            try:
-                with open(generic_cache, "r", encoding="utf-8") as fp:
-                    return json.load(fp), "GENERIC_CACHE"
-            except Exception:
-                pass
+        # 2. Check local cache file across standard workspace locations
+        search_dirs = [
+            Path(__file__).resolve().parent.parent / "data" / "cache",
+            WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache",
+            Path.cwd() / "data" / "cache",
+            Path.cwd() / "live-market-terminal" / "data" / "cache",
+        ]
+        for cdir in search_dirs:
+            live_cache = cdir / f"option_chain_{sym.lower()}.json"
+            if live_cache.exists():
+                try:
+                    with open(live_cache, "r", encoding="utf-8") as fp:
+                        return json.load(fp), "LIVE_CACHE"
+                except Exception:
+                    pass
 
+        # 3. Generic cache
+        for cdir in search_dirs:
+            generic_cache = cdir / "option_chain.json"
+            if generic_cache.exists():
+                try:
+                    with open(generic_cache, "r", encoding="utf-8") as fp:
+                        return json.load(fp), "GENERIC_CACHE"
+                except Exception:
+                    pass
+
+        # 4. Sample file
         sample_file = WORKSPACE_ROOT / "Daily-Market-Regime-Engine" / "data" / "sample_option_chain.json"
         if sample_file.exists():
             try:
@@ -574,11 +575,21 @@ class OptionsAnalytics:
 
     @classmethod
     def _check_data_freshness(cls, timestamp_str: str) -> bool:
-        """Validates if timestamp is from today's trading session."""
+        """Validates if timestamp is from today's trading session or most recent session."""
         if not timestamp_str:
             return False
         today_str = get_ist_now().strftime("%d-%b-%Y")
-        return timestamp_str.startswith(today_str)
+        if timestamp_str.startswith(today_str):
+            return True
+        try:
+            from data.market_status_manager import get_market_status_manager
+            status_mgr = get_market_status_manager()
+            last_session_date = status_mgr.get_last_trading_session_date()
+            if timestamp_str.startswith(last_session_date.strftime("%d-%b-%Y")):
+                return True
+        except Exception:
+            pass
+        return False
 
     @classmethod
     def _get_unavailable_payload(
