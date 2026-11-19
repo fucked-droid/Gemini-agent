@@ -44,9 +44,9 @@ class TechnicalIndicators:
             cum_pv = pv.cumsum()
             cum_vol = df["Volume"].cumsum()
 
-        # Handle zero-volume edge case
+        # Handle zero-volume edge case (fallback to typical price if zero volume everywhere)
         vwap = cum_pv / cum_vol.replace(0, np.nan)
-        return vwap.ffill().bfill()
+        return vwap.ffill().bfill().fillna(typical_price)
 
     @staticmethod
     def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:

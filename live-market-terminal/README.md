@@ -1,6 +1,6 @@
 # Live Indian Market Terminal — Production Build
 
-A professional, institutional-grade Indian stock market monitoring terminal built in Python with synchronized CLI (Python Rich) and Browser (Streamlit + Plotly) interfaces.
+A professional, institutional-grade Indian stock market monitoring terminal built in Python with synchronized CLI (Python Rich) and high-performance Web Single Page Application (FastAPI + WebSockets + HTML5).
 
 ---
 
@@ -8,35 +8,32 @@ A professional, institutional-grade Indian stock market monitoring terminal buil
 
 ```
 live-market-terminal/
-├── app.py                     # Streamlit browser dashboard entry point
-├── terminal.py                # Rich CLI terminal entry point
-├── config.py                  # Central configuration, credentials & schedule
-├── requirements.txt           # Production dependencies
-├── .env.example               # Environment variables template
+├── web_server.py          # FastAPI/Uvicorn live WebSocket web server & SPA entry point
+├── terminal.py            # Rich CLI terminal entry point
+├── config.py              # Central configuration, credentials & schedule
+├── requirements.txt       # Production dependencies
+├── .env.example           # Environment variables template
+├── static/                # Single Page Application (HTML, CSS, JS)
 ├── data/
-│   ├── dhan_client.py         # DhanHQ REST API client with rate-limiting & backoff
-│   ├── instrument_master.py   # Scrip master downloader, cache & security ID resolver
-│   ├── websocket_client.py    # DhanHQ MarketFeed WebSocket tick streaming worker
-│   ├── historical_data.py     # Multi-timeframe resampling & OHLC invariant validator
-│   └── market_cache.py        # Centralized thread-safe cache & snapshot store
+│   ├── dhan_client.py     # DhanHQ REST API client with rate-limiting & backoff
+│   ├── instrument_master.py # Scrip master downloader, cache & security ID resolver
+│   ├── websocket_client.py # DhanHQ MarketFeed WebSocket tick streaming worker
+│   ├── historical_data.py # Multi-timeframe resampling & OHLC invariant validator
+│   └── market_cache.py    # Centralized thread-safe cache & snapshot store
 ├── analytics/
-│   ├── indicators.py          # EMA 10/20, VWAP, RSI, MACD, ATR, Bollinger Bands, ORB
-│   ├── order_flow.py          # CVD calculation, Delta decomposition, Buyer/Seller pressure
-│   ├── market_structure.py    # Fractal swing highs/lows, HH/LL, BOS & CHoCH events
-│   ├── market_breadth.py      # NIFTY advance/decline ratio & verified institutional flow
-│   └── multi_timeframe.py     # Multi-timeframe alignment (1m, 5m, 15m, 30m, 60m)
+│   ├── indicators.py      # EMA 10/20, VWAP, RSI, MACD, ATR, Bollinger Bands, ORB
+│   ├── order_flow.py      # CVD calculation, Delta decomposition, Buyer/Seller pressure
+│   ├── market_structure.py # Fractal swing highs/lows, HH/LL, BOS & CHoCH events
+│   ├── market_breadth.py  # NIFTY advance/decline ratio & verified institutional flow
+│   └── multi_timeframe.py # Multi-timeframe alignment (1m, 5m, 15m, 30m, 60m)
 ├── prediction/
-│   ├── features.py            # Strictly past-only feature extraction (zero lookahead)
-│   ├── models.py              # Baseline quantitative momentum & directional classifier
-│   ├── validation.py          # Walk-forward validation, Brier score, ECE & friction tests
-│   └── forecasting.py         # Multi-horizon forecast orchestrator (5m, 15m, 30m, 60m)
+│   ├── features.py        # Strictly past-only feature extraction (zero lookahead)
+│   ├── models.py          # Baseline quantitative momentum & directional classifier
+│   ├── validation.py      # Walk-forward validation, Brier score, ECE & friction tests
+│   └── forecasting.py     # Multi-horizon forecast orchestrator (5m, 15m, 30m, 60m)
 ├── signals/
-│   ├── decision_engine.py     # Rules-based BUY / SELL / WAIT decision engine
-│   └── risk_management.py     # Lot sizing, stop-loss distance & daily risk limits
-├── dashboard/
-│   ├── layout.py              # Bloomberg-style institutional dark CSS theme
-│   ├── components.py          # Metric cards, MTF matrices, forecast banners
-│   └── charts.py              # Interactive Plotly Candlestick, CVD & Pressure gauge
+│   ├── decision_engine.py # Rules-based BUY / SELL / WAIT decision engine
+│   └── risk_management.py # Lot sizing, stop-loss distance & daily risk limits
 └── tests/
     ├── test_indicators.py     # Mathematical verification of all technical indicators
     ├── test_market_data.py    # Dhan API parsing, instrument resolution, candle checks

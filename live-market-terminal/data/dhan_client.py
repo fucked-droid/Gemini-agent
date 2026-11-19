@@ -43,8 +43,9 @@ class DhanClient:
         access_token: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
-        self.client_id = client_id or DHAN_CLIENT_ID
-        self.access_token = access_token or DHAN_ACCESS_TOKEN
+        self._explicit_unauth = (client_id == "" and access_token == "")
+        self.client_id = DHAN_CLIENT_ID if client_id is None else client_id
+        self.access_token = DHAN_ACCESS_TOKEN if access_token is None else access_token
         self.base_url = (base_url or DHAN_BASE_URL).rstrip("/")
         self.instrument_master = InstrumentMaster()
         self.last_request_time = 0.0
@@ -59,6 +60,12 @@ class DhanClient:
         """Initializes broker SDK (DhanHQ, Shoonya, Angel One) or falls back to Free Public Feed."""
         mgr = get_market_status_manager()
         self._free_adapter = None
+
+        if getattr(self, "_explicit_unauth", False):
+            self.is_authenticated = False
+            self.provider_name = "Public Market Feed (Offline / Unauthenticated)"
+            mgr.set_provider_status(False, self.provider_name)
+            return
 
         provider_env = os.getenv("DATA_PROVIDER", "").upper()
         if provider_env == "SHOONYA" or os.getenv("SHOONYA_USER_ID"):
@@ -457,6 +464,12 @@ class DhanClient:
             return CryptoFeed.get_historical_candles(interval=interval)
 
         meta = self.instrument_master.resolve_instrument(symbol)
+
+        # Attempt free broker adapter first (Angel One SmartAPI)
+        if getattr(self, "_free_adapter", None) and self._free_adapter.is_connected:
+            candles = self._free_adapter.get_historical_candles(meta["symbol"], interval=interval, days=days)
+            if candles is not None and not candles.empty:
+                return candles
 
         # Attempt live API if authenticated
         if self.is_authenticated:

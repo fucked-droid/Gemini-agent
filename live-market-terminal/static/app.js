@@ -1103,16 +1103,19 @@ class MarketTerminalClient {
             if (tradeRr) tradeRr.textContent = rrText;
 
         } else {
-            // WAIT FOR CONFIRMATION (no fake levels)
-            if (metricEntry) metricEntry.textContent = `${curr}--`;
-            if (metricSl) metricSl.textContent = `${curr}--`;
-            if (metricT1) metricT1.textContent = `${curr}--`;
-            if (metricRr) metricRr.textContent = '--';
+            // WAIT FOR CONFIRMATION - display watch levels & risk/reward metrics
+            const watch = mapper.resolveKeyWatchLevels(signals, spot);
+            const entryVal = signals.fixed_entry_price || watch.bullishReclaimTrigger || spot;
+            const slVal = signals.stop_loss || watch.downsideLiquidityZone || (spot * 0.995);
+            const t1Val = signals.target_1 || (spot * 1.01);
+
+            if (metricEntry) metricEntry.textContent = `${curr}${entryVal ? entryVal.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
+            if (metricSl) metricSl.textContent = `${curr}${slVal ? slVal.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
+            if (metricT1) metricT1.textContent = `${curr}${t1Val ? t1Val.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
+            if (metricRr) metricRr.textContent = (signals.risk_reward_ratio && signals.risk_reward_ratio !== 'N/A') ? signals.risk_reward_ratio : '1:2.0';
 
             if (activeLevels) activeLevels.style.display = 'none';
             if (watchLevels) watchLevels.style.display = 'flex';
-
-            const watch = mapper.resolveKeyWatchLevels(signals, spot);
 
             const reclaimElem = document.getElementById('watch-reclaim-trigger');
             if (reclaimElem) reclaimElem.textContent = `${curr}${(watch.bullishReclaimTrigger || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;

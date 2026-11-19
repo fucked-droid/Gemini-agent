@@ -145,57 +145,58 @@ class AngelOneAdapter(BaseBrokerAdapter):
         pin: Optional[str] = None,
         totp_secret: Optional[str] = None,
     ):
-        super().__init__("Angel One SmartAPI (Free)")
-        self.api_key = api_key or os.getenv("ANGEL_API_KEY", "")
-        self.client_code = client_code or os.getenv("ANGEL_CLIENT_CODE", "")
-        self.pin = pin or os.getenv("ANGEL_PIN", "")
-        self.totp_secret = totp_secret or os.getenv("ANGEL_TOTP_SECRET", "")
+        super().__init__("Angel One SmartAPI (Official Free)")
+        from .angel_provider import get_angel_provider
+        self.provider = get_angel_provider()
+        self.api_key = api_key or self.provider.api_key
+        self.client_code = client_code or self.provider.client_code
+        self.pin = pin or self.provider.pin
+        self.totp_secret = totp_secret or self.provider.totp_secret
         self.smart_api = None
 
     def connect(self) -> bool:
-        """Authenticates with Angel One SmartAPI using TOTP."""
-        if not (self.api_key and self.client_code and self.pin):
-            logger.info("Angel One credentials not provided. Using Public Real-Time Feed.")
-            return False
-
-        try:
-            from SmartApi import SmartConnect
-            import pyotp
-
-            self.smart_api = SmartConnect(api_key=self.api_key)
-            totp = pyotp.TOTP(self.totp_secret).now() if self.totp_secret else ""
-            data = self.smart_api.generateSession(self.client_code, self.pin, totp)
-            if data and data.get("status"):
-                self.is_connected = True
-                logger.info(f"Successfully authenticated with {self.name}.")
-                return True
-            else:
-                logger.warning(f"Angel One login failed: {data}")
-                return False
-        except ImportError:
-            logger.info("smartapi-python not installed. Install with `pip install smartapi-python pyotp` to enable Angel One.")
-            return False
-        except Exception as e:
-            logger.warning(f"Failed to connect to Angel One SmartAPI: {e}")
+        """Authenticates with Angel One SmartAPI and initializes streaming."""
+        success = self.provider.authenticate()
+        if success:
+            self.is_connected = True
+            self.smart_api = self.provider.smart_api
+            logger.info(f"Successfully authenticated with {self.name}.")
+            # Start streaming and candle pre-fetch
+            try:
+                self.provider.fetch_startup_candles()
+                self.provider.start_websocket_stream()
+            except Exception as se:
+                logger.warning(f"Startup streaming hook warning: {se}")
+            return True
+        else:
+            self.is_connected = False
             return False
 
     def get_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
-        if not self.is_connected or not self.smart_api:
+        if not self.is_connected:
             return None
-        # Symbol mapping for Angel One
-        token_map = {"NIFTY": ("NSE", "99926000"), "BANKNIFTY": ("NSE", "99926009")}
+        from .market_cache import get_global_cache
+        cache = get_global_cache()
+        # 1. Check live WebSocket / memory quote cache
+        if symbol.upper() in cache.quotes:
+            q = cache.quotes[symbol.upper()]
+            if q and q.get("source") in ("ANGEL_SMARTWS_LIVE", "ANGEL_SMARTAPI_STARTUP", "ANGEL_SMARTAPI_LIVE"):
+                return q
+
+        # 2. Query SmartAPI REST ltpData
+        token_map = {"NIFTY": ("NSE", "99926000"), "BANKNIFTY": ("NSE", "99926009"), "INDIAVIX": ("NSE", "99926017")}
         exch, token = token_map.get(symbol.upper(), ("NSE", ""))
-        if not token:
+        if not token or not self.provider.smart_api:
             return None
         try:
-            q = self.smart_api.ltpData(exch, symbol.upper(), token)
+            q = self.provider.smart_api.ltpData(exch, symbol.upper(), token)
             if q and q.get("status"):
                 d = q.get("data", {})
                 ltp = float(d.get("ltp", 0.0))
                 close = float(d.get("close", ltp))
                 chg = ltp - close
                 chg_pct = (chg / close * 100.0) if close != 0 else 0.0
-                return {
+                quote_obj = {
                     "symbol": symbol.upper(),
                     "name": f"{symbol.upper()} 50" if symbol.upper() == "NIFTY" else symbol.upper(),
                     "security_id": token,
@@ -212,6 +213,20 @@ class AngelOneAdapter(BaseBrokerAdapter):
                     "is_live": True,
                     "source": "ANGEL_SMARTAPI_LIVE",
                 }
+                cache.update_quote(symbol.upper(), quote_obj)
+                return quote_obj
         except Exception as e:
             logger.debug(f"Angel One get_quote failed for {symbol}: {e}")
         return None
+
+    def get_historical_candles(self, symbol: str, interval: str = "5m", days: int = 5) -> Optional[pd.DataFrame]:
+        """Returns 5m candles from Angel One SmartAPI."""
+        sym = symbol.upper()
+        if sym in self.provider.cached_candles:
+            return self.provider.cached_candles[sym]
+        candles_dict = self.provider.fetch_startup_candles(days=days)
+        return candles_dict.get(sym)
+
+    def get_futures_metrics(self) -> Dict[str, Any]:
+        """Returns real-time VWAP, tick-rule CVD, buyer/seller pressure from NIFTY Futures."""
+        return self.provider.get_futures_metrics()

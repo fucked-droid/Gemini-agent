@@ -126,6 +126,27 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     candles_5m = tf_suite.get("5m", candles_1m)
     df_enriched, ind_sc = TechnicalIndicators.calculate_all(candles_5m)
     order_flow = OrderFlowAnalyzer.analyze_order_flow(candles_5m, session_df=candles_1m)
+
+    # Real-Time NIFTY Futures Integration (Requirement 3: VWAP, CVD, Buyer/Seller Pressure)
+    if sym == "NIFTY":
+        try:
+            from data.angel_provider import get_angel_provider
+            fut_metrics = get_angel_provider().get_futures_metrics()
+            if fut_metrics:
+                if fut_metrics.get("vwap", 0) > 0:
+                    ind_sc["vwap"] = fut_metrics["vwap"]
+                if fut_metrics.get("buyer_percentage") is not None:
+                    order_flow["buyer_percentage"] = fut_metrics["buyer_percentage"]
+                if fut_metrics.get("session_cvd") is not None:
+                    order_flow["session_cvd"] = fut_metrics["session_cvd"]
+                    order_flow["cvd"] = fut_metrics["cvd"]
+                    order_flow["is_cvd_available"] = True
+                    order_flow["cvd_display"] = f"{fut_metrics['cvd']} contracts"
+                order_flow["nifty_future_contract"] = fut_metrics.get("contract", "")
+                order_flow["future_price"] = fut_metrics.get("fut_price", 0.0)
+        except Exception as fe:
+            logger.debug(f"Could not merge futures metrics: {fe}")
+
     structure = MarketStructureAnalyzer.analyze_structure(candles_5m)
     smc_analysis = SMCAnalyzer.analyze_smc(candles_5m)
 
@@ -352,11 +373,87 @@ async def continuous_market_monitor_task():
         # Continuous tick interval: 3 seconds for responsive web terminal
         await asyncio.sleep(3.0)
 
+async def daily_session_refresh_scheduler_task():
+    """
+    Requirement 5:
+    Daily background scheduler running every 30 seconds to check and refresh
+    the Angel One SmartAPI session at 08:50 AM IST before market open.
+    """
+    logger.info("Daily 08:50 AM IST SmartAPI Session Refresh Scheduler started.")
+    while True:
+        try:
+            from data.angel_provider import get_angel_provider
+            get_angel_provider().check_and_refresh_session()
+        except Exception as e:
+            logger.debug(f"Session scheduler error: {e}")
+        await asyncio.sleep(30.0)
+
 @app.on_event("startup")
 async def startup_event():
-    """Starts background monitor on server boot."""
-    if os.getenv("TESTING", "0") != "1":
-        asyncio.create_task(continuous_market_monitor_task())
+    """
+    Server startup orchestration:
+    1. Authenticate Angel One SmartAPI via TOTP.
+    2. Fetch 5-day FIVE_MINUTE startup candles for NIFTY (99926000), BANKNIFTY (99926009), INDIA VIX (99926017).
+    3. Dynamically resolve nearest monthly NIFTY NFO FUTIDX contract from OpenAPIScripMaster.json.
+    4. Start SmartWebSocketV2 (mode 3) for live ticks & futures metrics (scaled / 100.0).
+    5. Connect BTC (DEV TEST) to Binance's free public WebSocket (wss://stream.binance.com:9443/ws/btcusdt@aggTrade).
+    6. Pre-calculate analytics, indicators (EMA 10/20, ADX), and forecasts so charts populate immediately.
+    7. Start daily 08:50 AM IST session refresh scheduler and continuous monitor.
+    """
+    if os.getenv("TESTING", "0") == "1":
+        return
+
+    logger.info("Initializing Live Indian Market Terminal...")
+
+    # 1. Connect BTC (DEV TEST) to Binance's free public WebSocket (Requirement 4)
+    try:
+        from data.crypto_feed import CryptoFeed
+        CryptoFeed.start_binance_websocket()
+    except Exception as be:
+        logger.warning(f"Error starting Binance BTC WebSocket: {be}")
+
+    # 2. Authenticate Angel One SmartAPI and fetch startup candles (Requirement 1 & 2)
+    try:
+        from data.angel_provider import get_angel_provider
+        angel_prov = get_angel_provider()
+        if angel_prov.authenticate():
+            # Startup 5m candles for NIFTY, BANKNIFTY, INDIAVIX
+            startup_candles = angel_prov.fetch_startup_candles(days=5)
+            for sym, df_candles in startup_candles.items():
+                if df_candles is not None and not df_candles.empty:
+                    tf_suite = HistoricalDataManager.build_timeframe_suite(df_candles)
+                    tf_suite["5m"] = df_candles
+                    cache.set_candles(sym, tf_suite)
+
+            # Dynamically resolve nearest monthly NIFTY NFO FUTIDX contract
+            fut_contract = angel_prov.resolve_nearest_nifty_future()
+            if fut_contract:
+                logger.info(
+                    f"Resolved nearest NIFTY Future: {fut_contract.get('symbol')} "
+                    f"(Token: {fut_contract.get('token')}, Expiry: {fut_contract.get('expiry')})"
+                )
+
+            # Start SmartWebSocketV2 in mode 3
+            angel_prov.start_websocket_stream()
+        else:
+            logger.warning("Angel One SmartAPI authentication returned False on startup.")
+    except Exception as ae:
+        logger.error(f"Error initializing Angel One SmartAPI on startup: {ae}")
+
+    # 3. Pre-populate quotes and execute analytics pipeline for NIFTY, BANKNIFTY, BTC
+    try:
+        for sym in ["NIFTY", "BANKNIFTY", "BTC"]:
+            q = client.get_quote(sym)
+            cache.update_quote(sym, q)
+            process_symbol_pipeline(sym, q)
+        cache.save_to_snapshot()
+        logger.info("Initial instrument pipelines processed and cached.")
+    except Exception as pe:
+        logger.warning(f"Error executing startup pipelines: {pe}")
+
+    # 4. Start background monitoring worker and daily 08:50 AM IST refresh scheduler
+    asyncio.create_task(continuous_market_monitor_task())
+    asyncio.create_task(daily_session_refresh_scheduler_task())
 
 # ==========================================
 # REST API ENDPOINTS
