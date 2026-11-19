@@ -4,10 +4,9 @@
   "description": "Unified Market & IPO Intelligence Suite with isolated standalone fallback agent.",
   "main": "standalone-agent/index.js",
   "scripts": {
-    "test": "npm run test:market && npm run test:ipo && npm run test:terminal",
-    "test:market": "python Daily-Market-Regime-Engine/run_all_tests.py",
-    "test:ipo": "python IPO-Intelligence-Engine/run_all_tests.py",
-    "test:terminal": "python live-market-terminal/run_tests.py",
+    "test": "node standalone-agent/cross_platform.test.js",
+    "test:calculator": "node standalone-agent/cross_platform.test.js",
+    "test:terminal": "python3 live-market-terminal/run_tests.py",
     "terminal": "python terminal.py",
     "dashboard": "streamlit run app.py",
     "scan:nifty": "python Daily-Market-Regime-Engine/scan_nifty.py",

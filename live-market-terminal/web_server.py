@@ -217,7 +217,12 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     else:
         of_label = "Balanced"
 
-    opt_analysis = OptionsAnalytics.get_options_intelligence(sym, spot)
+    # Check if active options intelligence already exists in cache (e.g. from live feed sync)
+    existing_opt = cache.analytics.get(sym, {}).get("options_intelligence", {})
+    if existing_opt and existing_opt.get("status") not in ("UNAVAILABLE", None) and existing_opt.get("pcr_oi") is not None:
+        opt_analysis = existing_opt
+    else:
+        opt_analysis = OptionsAnalytics.get_options_intelligence(sym, spot, allow_sample=True)
     opt_sentiment = opt_analysis.get("sentiment", "Unavailable")
     perf_metrics = PerformanceAnalytics.get_performance_metrics(sym)
 
@@ -497,11 +502,18 @@ def get_forecasts(symbol: str = "NIFTY"):
 def get_options(symbol: str = "NIFTY", refresh: bool = False):
     """Returns Put-Call Ratio, Open Interest shifts, Max Pain, and strike radar."""
     sym = symbol.upper()
-    if refresh or sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
-        process_symbol_pipeline(sym)
-    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    opt_data = analytics_data.get("options_intelligence", OptionsAnalytics.get_options_intelligence(sym))
+    opt_data = analytics_data.get("options_intelligence")
+
+    if refresh or not opt_data or opt_data.get("status") in ("UNAVAILABLE", None):
+        process_symbol_pipeline(sym)
+        analytics_data = cache.analytics.get(sym, {})
+        opt_data = analytics_data.get("options_intelligence")
+
+    if not opt_data or opt_data.get("status") in ("UNAVAILABLE", None):
+        opt_data = OptionsAnalytics.get_options_intelligence(sym, allow_sample=True)
+
+    status_mgr = get_market_status_manager()
     return status_mgr.create_response_envelope(
         instrument=sym,
         payload=opt_data
@@ -577,11 +589,15 @@ def get_news_and_events():
 def get_option_greeks(symbol: str = "NIFTY"):
     """Returns ATM option Greeks (Delta, Gamma, Theta, Vega), IV Skew, and verified strike radar."""
     sym = symbol.upper()
-    if sym not in cache.analytics or not cache.analytics[sym] or "options_intelligence" not in cache.analytics[sym]:
-        process_symbol_pipeline(sym)
-    status_mgr = get_market_status_manager()
     analytics_data = cache.analytics.get(sym, {})
-    opt_data = analytics_data.get("options_intelligence", {})
+    opt_data = analytics_data.get("options_intelligence")
+    if not opt_data or opt_data.get("status") in ("UNAVAILABLE", None):
+        process_symbol_pipeline(sym)
+        analytics_data = cache.analytics.get(sym, {})
+        opt_data = analytics_data.get("options_intelligence")
+    if not opt_data or opt_data.get("status") in ("UNAVAILABLE", None):
+        opt_data = OptionsAnalytics.get_options_intelligence(sym, allow_sample=True)
+    status_mgr = get_market_status_manager()
     greeks_data = {
         "symbol": sym,
         "underlying_price": opt_data.get("underlying_price"),
@@ -658,10 +674,27 @@ async def sync_external_feed(packet: Dict[str, Any]):
                         status_mgr.record_tick(sym)
                         status_mgr.set_provider_status(True, q.get("source", "Live Bridge Feed"))
 
+        options_chain = packet.get("options_chain") or packet.get("option_chains")
+        if options_chain and isinstance(options_chain, dict):
+            try:
+                from data.options_feed import NSEOptionChainFeed
+                for oc_sym, oc_data in options_chain.items():
+                    if isinstance(oc_data, dict) and oc_data.get("records"):
+                        sym_u = oc_sym.upper()
+                        NSEOptionChainFeed._mem_cache[sym_u] = oc_data
+                        NSEOptionChainFeed._cache_timestamps[sym_u] = time.time()
+                        NSEOptionChainFeed._save_to_disk_cache(sym_u, oc_data)
+            except Exception as oce:
+                logger.warning(f"Error caching synced option chain: {oce}")
+
         analytics = packet.get("analytics")
         if analytics and isinstance(analytics, dict):
             for sym, data in analytics.items():
-                cache.update_analytics(sym, data)
+                sym_u = sym.upper()
+                if sym_u in cache.analytics and isinstance(cache.analytics[sym_u], dict) and isinstance(data, dict):
+                    cache.analytics[sym_u].update(data)
+                else:
+                    cache.update_analytics(sym_u, data)
 
         signals = packet.get("signals")
         if signals and isinstance(signals, dict):
