@@ -126,12 +126,24 @@ class OptionsAnalytics:
                 details="Crypto instruments do not trade on NSE Option Chain.",
             )
 
-        # 2. Check Provider Connection and Freshness
+        # 2. Check Angel One Provider live cached options intelligence
+        if sym in ("NIFTY", "BANKNIFTY"):
+            try:
+                from data.angel_provider import get_angel_provider
+                angel = get_angel_provider()
+                if angel.is_authenticated:
+                    angel_opt = angel.get_options_intelligence(sym)
+                    if angel_opt and angel_opt.get("status") not in ("UNAVAILABLE", None) and angel_opt.get("pcr_oi") is not None:
+                        return angel_opt
+            except Exception as e:
+                logger.debug(f"Angel options lookup error: {e}")
+
+        # 3. Check Provider Connection and Freshness
         from data.market_status_manager import get_market_status_manager
         status_mgr = get_market_status_manager()
         is_provider_live = status_mgr.provider_connected and status_mgr.is_session_active(sym)
 
-        # 3. Resolve authoritative option chain data
+        # 4. Resolve authoritative option chain data
         raw_data, source_type = cls._load_option_chain_data(sym)
 
         if not raw_data or (not allow_sample and source_type in ("SAMPLE_FILE", "GENERIC_CACHE")):

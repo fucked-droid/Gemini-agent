@@ -300,18 +300,18 @@
     }
 
     /**
-     * Resolves Options Sentiment indicator (Positive / Negative / Neutral / Unavailable).
+     * Resolves Options Sentiment indicator (Bullish / Bearish / Neutral / Unavailable).
      */
     function resolveOptionsSentiment(optData, activeSymbol) {
         if (activeSymbol === 'BTC') {
             return { label: 'Unavailable', badgeClass: 'text-muted' };
         }
         if (!optData) return { label: 'Unavailable', badgeClass: 'text-muted' };
-        const sent = String(optData.sentiment || optData.options_sentiment || 'Unavailable').trim();
+        const sent = String(optData.sentiment || optData.options_sentiment || optData.sentiment_label || 'Unavailable').trim();
         const upper = sent.toUpperCase();
-        if (upper === 'POSITIVE') return { label: 'Positive', badgeClass: 'text-green' };
-        if (upper === 'NEGATIVE') return { label: 'Negative', badgeClass: 'text-red' };
-        if (upper === 'NEUTRAL') return { label: 'Neutral', badgeClass: 'text-yellow' };
+        if (upper === 'POSITIVE' || upper === 'BULLISH') return { label: 'Bullish', badgeClass: 'text-green' };
+        if (upper === 'NEGATIVE' || upper === 'BEARISH') return { label: 'Bearish', badgeClass: 'text-red' };
+        if (upper === 'NEUTRAL' || upper === 'NEUTRAL/RANGEBOUND' || upper === 'RANGEBOUND') return { label: 'Neutral', badgeClass: 'text-yellow' };
         return { label: 'Unavailable', badgeClass: 'text-muted' };
     }
 

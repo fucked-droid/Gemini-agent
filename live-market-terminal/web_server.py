@@ -251,6 +251,9 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     is_cvd_avail = order_flow.get("is_cvd_available", False)
     shared_session_cvd = order_flow.get("session_cvd")
 
+    call_wall = opt_analysis.get("major_resistance_strike") or opt_analysis.get("call_wall")
+    put_wall = opt_analysis.get("major_support_strike") or opt_analysis.get("put_wall")
+
     market_intelligence = {
         "market_structure": ms_label,
         "vwap_position": vwap_pos,
@@ -266,6 +269,8 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
         "options_sentiment": opt_sentiment,
         "options_details": opt_analysis.get("details", ""),
         "options_pcr": opt_analysis.get("pcr_oi"),
+        "call_wall": call_wall,
+        "put_wall": put_wall,
         "market_regime": regime.get("regime", "SIDEWAYS_CONSOLIDATION"),
         "regime_strategy": regime.get("actionable_strategy", "NEUTRAL"),
         "data_status": status_info,
@@ -276,6 +281,11 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     decision["market_regime"] = regime
     decision["news_and_events"] = news_events
     decision["multi_timeframe_4tf"] = inst_4tf
+
+    if put_wall and not structure.get("nearest_support"):
+        structure["nearest_support"] = put_wall
+    if call_wall and not structure.get("nearest_resistance"):
+        structure["nearest_resistance"] = call_wall
 
     # Store serializable analytics in cache
     cache.update_analytics(sym, {
@@ -388,6 +398,25 @@ async def daily_session_refresh_scheduler_task():
             logger.debug(f"Session scheduler error: {e}")
         await asyncio.sleep(30.0)
 
+async def continuous_options_polling_task():
+    """
+    Requirement 2:
+    Rate-Safe 30-Second Polling Loop: Runs every 30 seconds respecting
+    SmartAPI rate limits. Batches ATM CE/PE contracts for NIFTY and BANKNIFTY
+    in a single call (up to 50 tokens) and computes live PCR and OI walls.
+    """
+    logger.info("Continuous 30s Options Polling Task started.")
+    await asyncio.sleep(5.0)
+    while True:
+        try:
+            from data.angel_provider import get_angel_provider
+            angel_prov = get_angel_provider()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, angel_prov.poll_options_data)
+        except Exception as e:
+            logger.warning(f"Error in continuous options polling: {e}")
+        await asyncio.sleep(30.0)
+
 @app.on_event("startup")
 async def startup_event():
     """
@@ -397,8 +426,9 @@ async def startup_event():
     3. Dynamically resolve nearest monthly NIFTY NFO FUTIDX contract from OpenAPIScripMaster.json.
     4. Start SmartWebSocketV2 (mode 3) for live ticks & futures metrics (scaled / 100.0).
     5. Connect BTC (DEV TEST) to Binance's free public WebSocket (wss://stream.binance.com:9443/ws/btcusdt@aggTrade).
-    6. Pre-calculate analytics, indicators (EMA 10/20, ADX), and forecasts so charts populate immediately.
-    7. Start daily 08:50 AM IST session refresh scheduler and continuous monitor.
+    6. Initial batched options poll (PCR & OI walls) for NIFTY & BANKNIFTY.
+    7. Pre-calculate analytics, indicators (EMA 10/20, ADX), and forecasts so charts populate immediately.
+    8. Start daily 08:50 AM IST session refresh scheduler, continuous monitor, and 30s options loop.
     """
     if os.getenv("TESTING", "0") == "1":
         return
@@ -435,6 +465,12 @@ async def startup_event():
 
             # Start SmartWebSocketV2 in mode 3
             angel_prov.start_websocket_stream()
+
+            # Initial options poll for NIFTY and BANKNIFTY ATM strikes
+            try:
+                angel_prov.poll_options_data(force=True)
+            except Exception as ope:
+                logger.warning(f"Initial options poll warning: {ope}")
         else:
             logger.warning("Angel One SmartAPI authentication returned False on startup.")
     except Exception as ae:
@@ -451,9 +487,10 @@ async def startup_event():
     except Exception as pe:
         logger.warning(f"Error executing startup pipelines: {pe}")
 
-    # 4. Start background monitoring worker and daily 08:50 AM IST refresh scheduler
+    # 4. Start background monitoring worker, 30s options task, and daily 08:50 AM IST refresh scheduler
     asyncio.create_task(continuous_market_monitor_task())
     asyncio.create_task(daily_session_refresh_scheduler_task())
+    asyncio.create_task(continuous_options_polling_task())
 
 # ==========================================
 # REST API ENDPOINTS

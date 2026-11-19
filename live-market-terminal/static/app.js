@@ -854,7 +854,7 @@ class MarketTerminalClient {
             flowSubElem.textContent = `CVD: ${sessionCvd >= 0 ? '+' : ''}${sessionCvd.toLocaleString()} contracts | ${mapper.formatEnumLabel(flow.order_flow_state || 'Balanced')}`;
         }
 
-        // Indicator 4: Options Sentiment (Positive / Negative / Neutral / Unavailable)
+        // Indicator 4: Options Sentiment (Bullish / Bearish / Neutral / Unavailable)
         const optResolved = mapper.resolveOptionsSentiment(mi, this.activeSymbol);
         const optValElem = document.getElementById('intel-options-val');
         if (optValElem) {
@@ -864,16 +864,26 @@ class MarketTerminalClient {
         const optPillElem = document.getElementById('intel-options-pill');
         if (optPillElem) {
             optPillElem.textContent = optResolved.label.toUpperCase();
-            optPillElem.className = `intel-pill ${optResolved.label === 'Positive' ? 'pill-green' : (optResolved.label === 'Negative' ? 'pill-red' : (optResolved.label === 'Neutral' ? 'pill-yellow' : 'pill-muted'))}`;
+            const pillClass = (optResolved.label === 'Bullish' || optResolved.label === 'Positive') ? 'pill-green' :
+                              ((optResolved.label === 'Bearish' || optResolved.label === 'Negative') ? 'pill-red' :
+                              (optResolved.label === 'Neutral' ? 'pill-yellow' : 'pill-muted'));
+            optPillElem.className = `intel-pill ${pillClass}`;
         }
         const optSubElem = document.getElementById('intel-options-sub');
         if (optSubElem) {
             if (this.activeSymbol === 'BTC') {
                 optSubElem.textContent = 'Options feed unavailable for Bitcoin dev mode';
-            } else if (optResolved.label === 'Unavailable' || !mi.options_pcr) {
+            } else if (optResolved.label === 'Unavailable' || (mi.options_pcr == null && !analytics.options_intelligence?.pcr_oi)) {
                 optSubElem.textContent = 'Option chain feed unavailable (Offline)';
             } else {
-                optSubElem.textContent = `PCR: ${parseFloat(mi.options_pcr).toFixed(2)} | ${mi.options_details || 'OI Distribution'}`;
+                const pcrVal = mi.options_pcr != null ? mi.options_pcr : analytics.options_intelligence?.pcr_oi;
+                const callWall = mi.call_wall || analytics.options_intelligence?.call_wall || analytics.options_intelligence?.major_resistance_strike;
+                const putWall = mi.put_wall || analytics.options_intelligence?.put_wall || analytics.options_intelligence?.major_support_strike;
+                if (callWall && putWall) {
+                    optSubElem.textContent = `PCR: ${parseFloat(pcrVal).toFixed(2)} | Put Wall: ${curr}${Number(putWall).toLocaleString('en-IN')} • Call Wall: ${curr}${Number(callWall).toLocaleString('en-IN')}`;
+                } else {
+                    optSubElem.textContent = `PCR: ${parseFloat(pcrVal).toFixed(2)} | ${mi.options_details || 'OI Distribution'}`;
+                }
             }
         }
 
@@ -892,7 +902,9 @@ class MarketTerminalClient {
         }
         const srElem = document.getElementById('intel-sr-val');
         if (srElem) {
-            srElem.textContent = `S: ${curr}${(struct.nearest_support || 0).toFixed(0)} | R: ${curr}${(struct.nearest_resistance || 0).toFixed(0)}`;
+            const sup = mi.put_wall || analytics.options_intelligence?.put_wall || analytics.options_intelligence?.major_support_strike || struct.nearest_support || 0;
+            const res = mi.call_wall || analytics.options_intelligence?.call_wall || analytics.options_intelligence?.major_resistance_strike || struct.nearest_resistance || 0;
+            srElem.textContent = (sup > 0 || res > 0) ? `S: ${curr}${Number(sup).toFixed(0)} | R: ${curr}${Number(res).toFixed(0)}` : `S: ${curr}-- | R: ${curr}--`;
         }
         const regimeData = analytics.market_regime || (this.cacheSignals[this.activeSymbol] && this.cacheSignals[this.activeSymbol].market_regime) || {};
         const regimeName = regimeData.regime || mtf.composite_trend || 'EVALUATING';
