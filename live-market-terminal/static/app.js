@@ -1419,8 +1419,9 @@ class MarketTerminalClient {
 
     updateOptionsTab(analytics) {
         const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
-        const opt = analytics?.options_intelligence || {};
-        const isUnavailable = (opt.sentiment === 'Unavailable' || this.activeSymbol === 'BTC' || !opt.pcr_oi);
+        const opt = analytics?.options_intelligence || analytics?.payload?.options_intelligence || (this.cacheAnalytics[this.activeSymbol] && this.cacheAnalytics[this.activeSymbol].options_intelligence) || {};
+        const hasPcr = (opt.pcr_oi != null && !isNaN(parseFloat(opt.pcr_oi)) && parseFloat(opt.pcr_oi) > 0);
+        const isUnavailable = (this.activeSymbol === 'BTC' || !hasPcr || opt.status === 'UNAVAILABLE' || opt.status === 'NO_CRYPTO_OPTIONS');
 
         const pcrOiElem = document.getElementById('opt-pcr-oi');
         const pcrSentElem = document.getElementById('opt-pcr-sentiment');
@@ -1481,11 +1482,11 @@ class MarketTerminalClient {
             const thetaVegaElem = document.getElementById('opt-greek-theta-vega');
             if (thetaVegaElem) thetaVegaElem.textContent = 'Θ: -- | ν: --';
             const exStatusElem = document.getElementById('opt-exchange-status');
-            if (exStatusElem) exStatusElem.textContent = 'OFFLINE';
+            if (exStatusElem) exStatusElem.textContent = this.activeSymbol === 'BTC' ? 'N/A' : 'OFFLINE';
             const exBadge = document.getElementById('opt-exchange-badge');
-            if (exBadge) { exBadge.textContent = 'UNVERIFIED'; exBadge.className = 'opt-badge pill-muted'; }
+            if (exBadge) { exBadge.textContent = this.activeSymbol === 'BTC' ? 'NO CRYPTO OPTIONS' : 'UNVERIFIED'; exBadge.className = 'opt-badge pill-muted'; }
             const exSub = document.getElementById('opt-exchange-sub');
-            if (exSub) exSub.textContent = 'Options feed not active';
+            if (exSub) exSub.textContent = this.activeSymbol === 'BTC' ? 'Crypto instruments do not trade on NSE Option Chain' : 'Options feed not active';
             return;
         }
 

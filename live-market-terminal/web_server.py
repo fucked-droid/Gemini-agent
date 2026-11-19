@@ -320,11 +320,11 @@ async def continuous_market_monitor_task():
     while True:
         try:
             now_ts = time.time()
-            # Periodic background options refresh every 45 seconds for active indices
-            if now_ts - last_options_refresh > 45.0:
+            # Periodic background options refresh every 30 seconds for active indices via Angel One SmartAPI
+            if now_ts - last_options_refresh > 30.0:
                 try:
-                    from data.options_feed import NSEOptionChainFeed
-                    NSEOptionChainFeed.refresh_all(["NIFTY", "BANKNIFTY"])
+                    from data.angel_provider import get_angel_provider
+                    get_angel_provider().poll_options_data()
                     last_options_refresh = now_ts
                 except Exception as oe:
                     logger.warning(f"Background options refresh error: {oe}")

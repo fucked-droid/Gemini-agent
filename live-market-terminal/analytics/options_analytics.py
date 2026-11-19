@@ -131,12 +131,17 @@ class OptionsAnalytics:
             try:
                 from data.angel_provider import get_angel_provider
                 angel = get_angel_provider()
+                if not angel.is_authenticated:
+                    angel.authenticate()
                 if angel.is_authenticated:
                     angel_opt = angel.get_options_intelligence(sym)
+                    if not angel_opt or angel_opt.get("status") in ("UNAVAILABLE", None) or angel_opt.get("pcr_oi") is None:
+                        angel.poll_options_data(force=True)
+                        angel_opt = angel.get_options_intelligence(sym)
                     if angel_opt and angel_opt.get("status") not in ("UNAVAILABLE", None) and angel_opt.get("pcr_oi") is not None:
                         return angel_opt
             except Exception as e:
-                logger.debug(f"Angel options lookup error: {e}")
+                logger.warning(f"Angel options lookup error: {e}")
 
         # 3. Check Provider Connection and Freshness
         from data.market_status_manager import get_market_status_manager

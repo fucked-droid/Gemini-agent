@@ -202,6 +202,7 @@ class AngelOneProvider:
                     "fromdate": from_dt,
                     "todate": to_dt,
                 }
+                time.sleep(0.35)
                 res = self.smart_api.getCandleData(param)
                 if res and res.get("status") and res.get("data"):
                     raw = res["data"]
@@ -587,7 +588,7 @@ class AngelOneProvider:
                 continue
             all_expiries.append(exp_str)
             try:
-                dt = datetime.strptime(exp_str, "%d%b%Y").date()
+                dt = datetime.datetime.strptime(exp_str, "%d%b%Y").date()
                 if dt >= now_date:
                     valid_expiries.append((dt, exp_str))
             except Exception:
