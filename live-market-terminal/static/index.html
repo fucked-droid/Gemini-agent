@@ -512,12 +512,32 @@
 
             <!-- Predictive Movement Forecasts -->
             <div class="card forecast-card">
-                <div class="card-header">
-                    <span class="card-title">Directional Movement Forecasts</span>
-                    <span class="model-badge">Momentum Classifier</span>
+                <div class="card-header forecast-panel-header">
+                    <div class="forecast-title-group">
+                        <span class="card-title">Directional Movement Forecasts</span>
+                        <span class="chart-status-badge badge-historical" id="forecast-mode-badge">HISTORICAL</span>
+                    </div>
+                    <div class="forecast-header-right">
+                        <span class="forecast-model-version" id="forecast-model-version">v2.4-Kalman-Momentum</span>
+                    </div>
                 </div>
+
+                <!-- Forecast Metadata Strip -->
+                <div class="forecast-meta-strip">
+                    <span class="forecast-meta-item">INSTRUMENT: <b id="forecast-sym-label">NIFTY 50</b></span>
+                    <span class="forecast-meta-item">CALIBRATION: <b id="forecast-calib-label">WALK-FORWARD</b></span>
+                    <span class="forecast-meta-item">UPDATED: <b id="forecast-updated-label">--:-- IST</b></span>
+                </div>
+
+                <!-- 4 Horizon Cards Grid -->
                 <div class="forecast-grid" id="forecast-container">
-                    <!-- Populated dynamically via JS -->
+                    <!-- Populated dynamically via JS: 5m, 15m, 30m, 60m -->
+                </div>
+
+                <!-- Model Verification & Disagreement Summary Footer -->
+                <div class="forecast-explanation-box">
+                    <span class="forecast-exp-icon">🎯</span>
+                    <span class="forecast-exp-text" id="forecast-explanation-text">Calibrating directional probabilities...</span>
                 </div>
             </div>
         </div>

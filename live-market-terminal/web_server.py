@@ -183,10 +183,20 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
 
     spot = quote.get("price", 25144.30)
     atr = ind_sc.get("atr", spot * 0.005)
-    forecasts = ForecastOrchestrator.run_prediction_pipeline(df_enriched, spot, atr)
 
     status_mgr = get_market_status_manager()
     status_info = status_mgr.get_status(sym)
+    data_mode = status_info.get("data_mode", "HISTORICAL")
+
+    forecasts = ForecastOrchestrator.run_prediction_pipeline(
+        df_enriched=df_enriched,
+        current_price=spot,
+        atr=atr,
+        tf_suite=tf_suite,
+        mtf_data=mtf_data,
+        symbol=sym,
+        data_mode=data_mode,
+    )
 
     # 4-Tier Institutional Multi-Timeframe Analysis (5m, 15m, 1h, daily)
     inst_4tf = MultiTimeframeEngine.institutional_4tf(tf_suite, spot_price=spot)

@@ -52,10 +52,56 @@ class TestForecasting(unittest.TestCase):
         for h in ["5m", "15m", "30m", "60m"]:
             self.assertIn(h, forecasts)
             f_data = forecasts[h]
-            self.assertIn(f_data["direction"], ["UP", "DOWN", "FLAT"])
+            self.assertIn(f_data["direction"], ["UP", "DOWN", "NEUTRAL"])
             self.assertLess(f_data["target_lower"], f_data["target_upper"])
             self.assertGreaterEqual(f_data["probability_up"], 0.0)
             self.assertLessEqual(f_data["probability_up"], 1.0)
+            self.assertIn("confidence_pct", f_data)
+            self.assertIn("indicator_agreement_pct", f_data)
+
+    def test_independent_horizon_forecasts(self):
+        # Create different dataframes for different horizons to verify independence
+        df_5m = self.df_enriched.copy()
+        # Create a downtrending 60m dataset
+        dates_60m = [datetime.datetime(2026, 11, 14, 9, 15) + datetime.timedelta(hours=i) for i in range(50)]
+        closes_60m = [25500.0 - i * 5.0 for i in range(50)]
+        df_60m_raw = pd.DataFrame(
+            {
+                "Open": closes_60m,
+                "High": [c + 5.0 for c in closes_60m],
+                "Low": [c - 5.0 for c in closes_60m],
+                "Close": closes_60m,
+                "Volume": 80000,
+            },
+            index=pd.DatetimeIndex(dates_60m, name="Datetime"),
+        )
+        df_60m_en, _ = TechnicalIndicators.calculate_all(df_60m_raw)
+
+        tf_suite = {
+            "5m": df_5m,
+            "15m": df_5m,
+            "30m": df_5m,
+            "60m": df_60m_en,
+        }
+
+        res = ForecastOrchestrator.run_prediction_pipeline(
+            df_enriched=df_5m,
+            current_price=25240.0,
+            atr=50.0,
+            tf_suite=tf_suite,
+            symbol="NIFTY",
+            data_mode="HISTORICAL",
+        )
+        horizons = res["horizons"]
+        # 5m was uptrending in setUp, 60m is downtrending
+        self.assertNotEqual(horizons["5m"]["direction"], horizons["60m"]["direction"])
+        self.assertEqual(horizons["60m"]["direction"], "DOWN")
+        self.assertNotEqual(horizons["5m"]["probability_up"], horizons["60m"]["probability_up"])
+        self.assertLess(horizons["60m"]["probability_up"], 0.45)
+        # Verify target lower < target upper across all horizons
+        for h, data in horizons.items():
+            self.assertLess(data["target_lower"], data["target_upper"])
+            self.assertGreater(data["target_upper"], data["target_lower"])
 
     def test_walk_forward_insufficient_sample_size_gate(self):
         small_returns = np.array([0.001, -0.002, 0.003])

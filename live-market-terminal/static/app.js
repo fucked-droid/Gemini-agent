@@ -1471,22 +1471,90 @@ class MarketTerminalClient {
 
     updateForecasts(forecasts) {
         const container = document.getElementById('forecast-container');
-        if (!container || !forecasts.horizons) return;
+        if (!container || !forecasts || !forecasts.horizons) return;
 
         const curr = '₹';
+
+        // 1. Update Header Metadata (Mode Badge, Version, Instrument, Updated)
+        const modeBadge = document.getElementById('forecast-mode-badge');
+        if (modeBadge) {
+            const isLive = this.isMarketOpen && forecasts.data_mode === 'LIVE';
+            modeBadge.textContent = isLive ? 'LIVE' : (forecasts.data_mode || 'HISTORICAL');
+            modeBadge.className = `chart-status-badge ${isLive ? 'badge-live' : 'badge-historical'}`;
+        }
+
+        const symLabel = document.getElementById('forecast-sym-label');
+        if (symLabel) {
+            symLabel.textContent = this.activeSymbol === 'BANKNIFTY' ? 'BANKNIFTY' : 'NIFTY 50';
+        }
+
+        const calibLabel = document.getElementById('forecast-calib-label');
+        if (calibLabel) {
+            const v = forecasts.validation || {};
+            if (v.is_validated && v.hit_rate_pct != null) {
+                calibLabel.textContent = `WALK-FWD (${v.hit_rate_pct}%)`;
+                calibLabel.style.color = '#00e676';
+            } else if (v.status === 'INSUFFICIENT_SAMPLE_SIZE') {
+                calibLabel.textContent = 'PROVISIONAL';
+                calibLabel.style.color = '#ffd600';
+            } else {
+                calibLabel.textContent = v.status || 'CALIBRATED';
+                calibLabel.style.color = '#8b949e';
+            }
+        }
+
+        const verLabel = document.getElementById('forecast-model-version');
+        if (verLabel && forecasts.model_version) {
+            verLabel.textContent = forecasts.model_version;
+        }
+
+        const upLabel = document.getElementById('forecast-updated-label');
+        if (upLabel) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Kolkata' });
+            upLabel.textContent = `${timeStr} IST`;
+        }
+
+        // 2. Render 4 Horizon Tiles (5m, 15m, 30m, 60m)
         container.innerHTML = '';
         for (const [h, fData] of Object.entries(forecasts.horizons)) {
-            const dir = fData.direction || 'FLAT';
-            const colorClass = dir === 'UP' ? 'text-green' : (dir === 'DOWN' ? 'text-red' : 'text-yellow');
+            const rawDir = fData.direction || 'NEUTRAL';
+            const dir = (rawDir === 'FLAT' || rawDir === 'SIDEWAYS') ? 'NEUTRAL' : rawDir;
+            const tileClass = dir === 'UP' ? 'up' : (dir === 'DOWN' ? 'down' : 'neutral');
+            const dirClass = dir;
+
+            const probUp = fData.probability_up != null ? (fData.probability_up * 100).toFixed(1) : '50.0';
+            const confPct = fData.confidence_pct != null ? fData.confidence_pct.toFixed(0) : '50';
+            const agreement = fData.indicator_agreement_pct != null ? `${fData.indicator_agreement_pct.toFixed(0)}%` : '--';
+            const lowVal = fData.target_lower != null ? Number(fData.target_lower).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '--';
+            const highVal = fData.target_upper != null ? Number(fData.target_upper).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '--';
+
             const tile = document.createElement('div');
-            tile.className = 'forecast-tile';
+            tile.className = `forecast-tile ${tileClass}`;
             tile.innerHTML = `
-                <div class="forecast-h">${h}</div>
-                <div class="forecast-dir ${colorClass}">${dir}</div>
-                <div class="forecast-target">${curr}${(fData.target_lower || 0).toFixed(0)} - ${curr}${(fData.target_upper || 0).toFixed(0)}</div>
-                <div class="forecast-prob">P(UP): ${((fData.probability_up || 0.5) * 100).toFixed(1)}%</div>
+                <div class="forecast-h">
+                    <span>${h}</span>
+                    <span class="forecast-h-sub">${fData.label ? fData.label.replace(h, '').trim() : ''}</span>
+                </div>
+                <div class="forecast-dir ${dirClass}">${dir}</div>
+                <div class="forecast-target-box">
+                    <div class="forecast-target-lbl">EXP RANGE (${curr})</div>
+                    <div class="forecast-target-val">${curr}${lowVal} - ${curr}${highVal}</div>
+                </div>
+                <div class="forecast-prob-box">
+                    <div class="forecast-prob">P(UP): ${probUp}%</div>
+                    <div class="forecast-agreement">Agreement: ${agreement}</div>
+                </div>
             `;
             container.appendChild(tile);
+        }
+
+        // 3. Render Footer Explanation & Disagreement / Confluence Summary
+        const expText = document.getElementById('forecast-explanation-text');
+        if (expText) {
+            const disSummary = forecasts.disagreement_summary || '';
+            const valMsg = (forecasts.validation && forecasts.validation.message) ? forecasts.validation.message : '';
+            expText.textContent = `${disSummary} ${valMsg}`.trim();
         }
     }
 
