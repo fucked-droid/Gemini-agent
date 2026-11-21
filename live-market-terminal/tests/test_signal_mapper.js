@@ -122,4 +122,56 @@ assert.strictEqual(watchLevels.downsideLiquidityZone, 24080.0);
 assert.strictEqual(watchLevels.tradeStatus, 'Execution Locked — Waiting for Confirmation');
 assert.strictEqual(watchLevels.positionSizing, '0% (100% Cash)');
 
+// 4B. Test Market Closed Execution Lock
+const watchLevelsClosed = SignalMapper.resolveKeyWatchLevels({
+    spot_price: 24150.0,
+    bullish_reclaim_trigger: 24200.0,
+    downside_liquidity_zone: 24080.0,
+}, 24150.0, true);
+assert.strictEqual(watchLevelsClosed.tradeStatus, 'Execution Locked (Market Closed)');
+
+// 5. Test 5 Required Signal Consistency Scenarios
+// Case 1: Neutral market with no confirmed signal
+const neutralCase = SignalMapper.classifySignal({
+    decision: 'WAIT',
+    clean_recommendation: 'WAIT FOR CONFIRMATION',
+    confidence_pct: null,
+});
+assert.strictEqual(neutralCase.recommendation, 'WAIT FOR CONFIRMATION');
+assert.strictEqual(neutralCase.hasValidSetup, false);
+
+// Case 2: Confirmed bullish signal
+const bullishCase = SignalMapper.classifySignal({
+    decision: 'BUY',
+    clean_recommendation: 'BUY',
+    confidence_pct: 78.0,
+});
+assert.strictEqual(bullishCase.recommendation, 'BUY');
+assert.strictEqual(bullishCase.hasValidSetup, true);
+assert.strictEqual(bullishCase.confidence, 78);
+
+// Case 3: Confirmed bearish signal
+const bearishCase = SignalMapper.classifySignal({
+    decision: 'SELL',
+    clean_recommendation: 'STRONG SELL',
+    confidence_pct: 88.0,
+});
+assert.strictEqual(bearishCase.recommendation, 'STRONG SELL');
+assert.strictEqual(bearishCase.hasValidSetup, true);
+assert.strictEqual(bearishCase.confidence, 88);
+
+// Case 4: Market closed with historical data
+const closedHistoricalCase = SignalMapper.classifySignal({
+    decision: 'EXECUTION LOCKED',
+    clean_recommendation: 'EXECUTION LOCKED',
+    confidence_pct: 0,
+});
+assert.strictEqual(closedHistoricalCase.recommendation, 'EXECUTION LOCKED');
+assert.strictEqual(closedHistoricalCase.hasValidSetup, false);
+
+// Case 5: Missing or invalid signal inputs
+const missingInputsCase = SignalMapper.classifySignal({});
+assert.strictEqual(missingInputsCase.recommendation, 'WAIT FOR CONFIRMATION');
+assert.strictEqual(missingInputsCase.hasValidSetup, false);
+
 console.log('All SignalMapper 5-state and intelligence unit tests PASSED successfully!');

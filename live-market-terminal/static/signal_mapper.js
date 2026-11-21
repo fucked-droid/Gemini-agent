@@ -92,7 +92,8 @@
         'HIGH': 'High Risk',
 
         // Trade Status & Position Sizing
-        'EXECUTION_LOCKED': 'Execution Locked — Waiting for Confirmation',
+        'EXECUTION_LOCKED': 'Execution Locked',
+        'EXECUTION_PERMITTED': 'Execution Permitted',
         'CASH_ONLY': '0% (100% Cash)',
     };
 
@@ -334,7 +335,7 @@
     /**
      * Resolves Key Watch Levels when waiting for confirmation.
      */
-    function resolveKeyWatchLevels(signals, spotPrice) {
+    function resolveKeyWatchLevels(signals, spotPrice, isMarketClosed = false) {
         signals = signals || {};
         const spot = parseFloat(spotPrice || signals.spot_price || 0);
 
@@ -360,10 +361,14 @@
             }
         }
 
+        const tradeStatus = isMarketClosed
+            ? 'Execution Locked (Market Closed)'
+            : 'Execution Locked — Waiting for Confirmation';
+
         return {
             bullishReclaimTrigger: parseFloat(reclaimTrigger),
             downsideLiquidityZone: parseFloat(liquidityZone),
-            tradeStatus: 'Execution Locked — Waiting for Confirmation',
+            tradeStatus: tradeStatus,
             positionSizing: '0% (100% Cash)',
         };
     }

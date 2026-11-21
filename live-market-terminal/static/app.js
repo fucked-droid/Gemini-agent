@@ -20,10 +20,10 @@ const mapper = (typeof SignalMapper !== 'undefined') ? SignalMapper : (typeof wi
     resolveVwapPosition: () => ({ label: 'At VWAP', badgeClass: 'text-cyan', diffPct: 0 }),
     resolveOrderFlow: () => ({ label: 'Balanced', badgeClass: 'text-yellow', buyerPct: 50.0 }),
     resolveOptionsSentiment: () => ({ label: 'Unavailable', badgeClass: 'text-muted' }),
-    resolveKeyWatchLevels: (s, p) => ({
+    resolveKeyWatchLevels: (s, p, c) => ({
         bullishReclaimTrigger: p ? p * 1.002 : 0,
         downsideLiquidityZone: p ? p * 0.995 : 0,
-        tradeStatus: 'Execution Locked — Waiting for Confirmation',
+        tradeStatus: c ? 'Execution Locked (Market Closed)' : 'Execution Locked — Waiting for Confirmation',
         positionSizing: '0% (100% Cash)',
     })
 });
@@ -1027,12 +1027,19 @@ class MarketTerminalClient {
             recBannerBox.style.boxShadow = `0 0 16px ${classified.themeColor}22`;
         }
 
+        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+        const isMarketClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
+
         const recConvictionLbl = document.getElementById('rec-conviction-lbl');
         const recConvictionFill = document.getElementById('rec-conviction-fill');
         if (recConvictionLbl) {
-            recConvictionLbl.textContent = classified.hasValidSetup
-                ? `Signal Confidence: ${classified.confidence}%`
-                : `Signal Confidence: --%`;
+            if (classified.confidence === null || classified.confidence === undefined || isNaN(classified.confidence)) {
+                recConvictionLbl.textContent = `Signal Confidence: UNAVAILABLE`;
+            } else if (classified.hasValidSetup) {
+                recConvictionLbl.textContent = `Signal Confidence: ${classified.confidence}%`;
+            } else {
+                recConvictionLbl.textContent = `Signal Confidence: --%`;
+            }
         }
         if (recConvictionFill) {
             recConvictionFill.style.width = classified.hasValidSetup ? `${classified.confidence}%` : `0%`;
@@ -1041,14 +1048,30 @@ class MarketTerminalClient {
 
         const setupTag = document.getElementById('signal-setup-tag');
         if (setupTag) {
-            const rawSetup = (signals.smc_setup && signals.smc_setup.setup_type) || 'STRUCTURE_ALIGNED';
-            setupTag.textContent = mapper.formatEnumLabel(rawSetup);
+            if (!classified.hasValidSetup) {
+                setupTag.textContent = 'NO CONFIRMED SETUP';
+            } else {
+                const smcSetupType = signals.smc_setup && signals.smc_setup.setup_type;
+                if (smcSetupType && smcSetupType !== 'NONE') {
+                    setupTag.textContent = mapper.formatEnumLabel(smcSetupType);
+                } else if (signals.clean_recommendation === 'BUY' || signals.clean_recommendation === 'STRONG BUY') {
+                    setupTag.textContent = 'BULLISH CONFIRMED';
+                } else if (signals.clean_recommendation === 'SELL' || signals.clean_recommendation === 'STRONG SELL') {
+                    setupTag.textContent = 'BEARISH CONFIRMED';
+                } else {
+                    setupTag.textContent = 'NO CONFIRMED SETUP';
+                }
+            }
         }
 
         // 6 Metrics Grid below Recommendation
         const metricConf = document.getElementById('metric-confidence');
         if (metricConf) {
-            metricConf.textContent = classified.hasValidSetup ? `${classified.confidence}%` : '--%';
+            if (classified.confidence === null || classified.confidence === undefined || isNaN(classified.confidence)) {
+                metricConf.textContent = 'UNAVAILABLE';
+            } else {
+                metricConf.textContent = classified.hasValidSetup ? `${classified.confidence}%` : '--%';
+            }
         }
 
         const metricMs = document.getElementById('metric-market-structure');
@@ -1101,25 +1124,22 @@ class MarketTerminalClient {
 
         } else {
             // WAIT FOR CONFIRMATION - display watch levels & risk/reward metrics
-            const watch = mapper.resolveKeyWatchLevels(signals, spot);
-            const entryVal = signals.fixed_entry_price || watch.bullishReclaimTrigger || spot;
-            const slVal = signals.stop_loss || watch.downsideLiquidityZone || (spot * 0.995);
-            const t1Val = signals.target_1 || (spot * 1.01);
-
-            if (metricEntry) metricEntry.textContent = safePrice(entryVal, 'Watch');
-            if (metricSl) metricSl.textContent = safePrice(slVal, 'Watch');
-            if (metricT1) metricT1.textContent = safePrice(t1Val, 'Watch');
-            if (metricRr) metricRr.textContent = (signals.risk_reward_ratio && signals.risk_reward_ratio !== 'N/A') ? signals.risk_reward_ratio : '1:2.0';
+            // Metric cells strictly display '--' for entry, stop loss, and target when no confirmed setup
+            if (metricEntry) metricEntry.textContent = '--';
+            if (metricSl) metricSl.textContent = '--';
+            if (metricT1) metricT1.textContent = '--';
+            if (metricRr) metricRr.textContent = '--';
 
             if (activeLevels) activeLevels.style.display = 'none';
             if (watchLevels) watchLevels.style.display = 'flex';
 
+            const watch = mapper.resolveKeyWatchLevels(signals, spot, isMarketClosed);
             const reclaimElem = document.getElementById('watch-reclaim-trigger');
             if (reclaimElem) reclaimElem.textContent = safePrice(watch.bullishReclaimTrigger, '--');
             const liqElem = document.getElementById('watch-liquidity-zone');
             if (liqElem) liqElem.textContent = safePrice(watch.downsideLiquidityZone, '--');
             const statusElem = document.getElementById('watch-trade-status');
-            if (statusElem) statusElem.textContent = watch.tradeStatus || 'Watching';
+            if (statusElem) statusElem.textContent = watch.tradeStatus || (isMarketClosed ? 'Execution Locked (Market Closed)' : 'Execution Locked — Waiting for Confirmation');
             const sizeElem = document.getElementById('watch-position-sizing');
             if (sizeElem) sizeElem.textContent = watch.positionSizing || '0% Risk Capital';
         }
@@ -1149,8 +1169,11 @@ class MarketTerminalClient {
 
         const modePill = document.getElementById('decision-mode-pill');
         if (modePill) {
-            if (classified.hasValidSetup) {
-                modePill.textContent = 'ACTIVE EXECUTION';
+            if (isMarketClosed) {
+                modePill.textContent = 'EXECUTION LOCKED';
+                modePill.className = 'panel-sub-badge text-cyan';
+            } else if (classified.hasValidSetup) {
+                modePill.textContent = 'EXECUTION PERMITTED';
                 modePill.className = 'panel-sub-badge text-green';
             } else {
                 const rawDec = String(signals.decision || '').toUpperCase();
