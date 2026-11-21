@@ -116,7 +116,103 @@ class TestSMCAnalyzer(unittest.TestCase):
         empty_df = pd.DataFrame()
         res = SMCAnalyzer.analyze_smc(empty_df)
         self.assertFalse(res["has_smc_setup"])
-        self.assertEqual(res["setup_type"], "INSUFFICIENT_DATA")
+        self.assertEqual(res["setup_type"], "INSUFFICIENT HISTORICAL DATA")
+        self.assertEqual(res["status"], "INSUFFICIENT HISTORICAL DATA")
+
+    def test_missing_candles_and_insufficient_history(self):
+        # 1. None
+        res_none = SMCAnalyzer.analyze_smc(None)
+        self.assertFalse(res_none["has_smc_setup"])
+        self.assertEqual(res_none["status"], "INSUFFICIENT HISTORICAL DATA")
+        self.assertEqual(res_none["setup_type"], "INSUFFICIENT HISTORICAL DATA")
+
+        # 2. Insufficient bars (< 10)
+        short_df = self.df.iloc[:5]
+        res_short = SMCAnalyzer.analyze_smc(short_df)
+        self.assertFalse(res_short["has_smc_setup"])
+        self.assertEqual(res_short["status"], "INSUFFICIENT HISTORICAL DATA")
+        self.assertEqual(res_short["details_why_it_works"], ["INSUFFICIENT HISTORICAL DATA"])
+
+    def test_invalid_ohlc_values_nan_inf_negative(self):
+        # 1. NaN in price
+        df_nan = self.df.copy()
+        df_nan.loc[df_nan.index[10], "High"] = np.nan
+        res_nan = SMCAnalyzer.analyze_smc(df_nan)
+        self.assertFalse(res_nan["has_smc_setup"])
+        self.assertEqual(res_nan["status"], "UNAVAILABLE — INVALID INPUT DATA")
+        self.assertEqual(res_nan["setup_type"], "UNAVAILABLE — INVALID INPUT DATA")
+        self.assertEqual(res_nan["details_why_it_works"], ["UNAVAILABLE — INVALID INPUT DATA"])
+
+        # 2. Infinite value
+        df_inf = self.df.copy()
+        df_inf.loc[df_inf.index[15], "Close"] = np.inf
+        res_inf = SMCAnalyzer.analyze_smc(df_inf)
+        self.assertFalse(res_inf["has_smc_setup"])
+        self.assertEqual(res_inf["status"], "UNAVAILABLE — INVALID INPUT DATA")
+
+        # 3. Negative price
+        df_neg = self.df.copy()
+        df_neg.loc[df_neg.index[20], "Low"] = -50.0
+        res_neg = SMCAnalyzer.analyze_smc(df_neg)
+        self.assertFalse(res_neg["has_smc_setup"])
+        self.assertEqual(res_neg["status"], "UNAVAILABLE — INVALID INPUT DATA")
+
+        # 4. Inconsistent High < Low
+        df_inv = self.df.copy()
+        df_inv.loc[df_inv.index[5], "High"] = 24900.0
+        df_inv.loc[df_inv.index[5], "Low"] = 25000.0
+        res_inv = SMCAnalyzer.analyze_smc(df_inv)
+        self.assertFalse(res_inv["has_smc_setup"])
+        self.assertEqual(res_inv["status"], "UNAVAILABLE — INVALID INPUT DATA")
+
+    def test_bos_choch_confirmation_gate(self):
+        from analytics.market_structure import MarketStructureAnalyzer
+        swings = MarketStructureAnalyzer.find_swings(self.df, window=2)
+        bos_choch = SMCAnalyzer.detect_bos_and_choch(self.df, swings)
+        bos = bos_choch.get("bos", {})
+        choch = bos_choch.get("choch", {})
+
+        # If confirmed, required levels must be valid numbers > 0
+        if bos.get("confirmed"):
+            self.assertGreater(bos.get("broken_level", 0), 0)
+            self.assertGreater(bos.get("level", 0), 0)
+            self.assertTrue(np.isfinite(bos.get("broken_level")))
+        if choch.get("confirmed"):
+            self.assertGreater(choch.get("broken_level", 0), 0)
+            self.assertGreater(choch.get("level", 0), 0)
+            self.assertTrue(np.isfinite(choch.get("broken_level")))
+
+        # Test corrupt swings: BOS must not show confirmed
+        corrupted_swings = {"swing_highs": [{"price": np.nan, "index": 5}], "swing_lows": []}
+        corrupt_res = SMCAnalyzer.detect_bos_and_choch(self.df, corrupted_swings)
+        self.assertFalse(corrupt_res["bos"]["confirmed"])
+        self.assertFalse(corrupt_res["choch"]["confirmed"])
+
+    def test_valid_structure_calculations(self):
+        from analytics.market_structure import MarketStructureAnalyzer
+        # Create zigzag price pattern for swing expansion detection: HH + HL
+        closes = [
+            10, 12, 15, 20, 18, 14, 10,  # Peak at 20, Trough at 10
+            15, 22, 28, 30, 25, 20, 15,  # Peak at 30 (HH), Trough at 15 (HL)
+            22, 32, 38, 42, 36, 30, 25   # Peak at 42 (HH)
+        ]
+        times = [datetime.datetime(2026, 11, 14, 9, 15) + datetime.timedelta(minutes=5 * i) for i in range(len(closes))]
+        df_zigzag = pd.DataFrame({
+            "Open": closes,
+            "High": [c + 1 for c in closes],
+            "Low": [c - 1 for c in closes],
+            "Close": closes,
+            "Volume": 1000
+        }, index=pd.DatetimeIndex(times))
+
+        struct = MarketStructureAnalyzer.analyze_structure(df_zigzag)
+        self.assertEqual(struct["status"], "VALID")
+        self.assertIn("EXPANSION", struct["structure_state"])
+        self.assertEqual(struct["trend_type"], "BULLISH")
+        self.assertGreater(struct["nearest_support"], 0.0)
+        self.assertGreater(struct["nearest_resistance"], 0.0)
+        self.assertTrue(all(np.isfinite(x) for x in struct["swing_highs"]))
+        self.assertTrue(all(np.isfinite(x) for x in struct["swing_lows"]))
 
 if __name__ == "__main__":
     unittest.main()

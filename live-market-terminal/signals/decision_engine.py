@@ -79,20 +79,21 @@ class TradingDecisionEngine:
         # -------------------------------------------------------------
         # STATE 1: DATA UNAVAILABLE GATING
         # -------------------------------------------------------------
-        if is_stale or spot_price <= 0:
+        if is_stale or spot_price <= 0 or (market_structure and market_structure.get("status") in ["INSUFFICIENT HISTORICAL DATA", "UNAVAILABLE — INVALID INPUT DATA"]):
+            err_status = market_structure.get("status") if (market_structure and market_structure.get("status")) else "DATA UNAVAILABLE"
             return {
-                "decision": "DATA UNAVAILABLE",
+                "decision": err_status,
                 "direction": "NONE",
-                "signal_recommendation": "DATA UNAVAILABLE",
-                "clean_recommendation": "DATA UNAVAILABLE",
-                "trade_decision_headline": "DATA UNAVAILABLE",
-                "trade_decision_sub": "Required market feed or technical indicators are missing or stale.",
-                "trade_decision_reasons": ["Market feed connection is offline, unauthenticated, or tick stream has stalled."],
+                "signal_recommendation": err_status,
+                "clean_recommendation": err_status,
+                "trade_decision_headline": err_status,
+                "trade_decision_sub": "Required market feed or technical indicators are missing, stale, or invalid.",
+                "trade_decision_reasons": [f"Market structure verification status: {err_status}"],
                 "framework_breakdown": {
-                    "higher_timeframe_bias": {"trend": "UNAVAILABLE", "description": "Feed unavailable"},
-                    "intraday_trend": {"structure": "UNAVAILABLE", "description": "Feed unavailable"},
-                    "entry_confirmation": {"is_confirmed": False, "description": "Feed unavailable"},
-                    "trade_invalidation": {"triggers": ["Feed offline"], "description": "Feed unavailable"},
+                    "higher_timeframe_bias": {"trend": "UNAVAILABLE", "description": err_status},
+                    "intraday_trend": {"structure": "UNAVAILABLE", "description": err_status},
+                    "entry_confirmation": {"is_confirmed": False, "description": err_status},
+                    "trade_invalidation": {"triggers": [err_status], "description": err_status},
                 },
                 "has_valid_setup": False,
                 "confidence_score": 0.0,
@@ -101,19 +102,19 @@ class TradingDecisionEngine:
                 "instrument": sym,
                 "timeframe": timeframe,
                 "fixed_entry_price": 0.0,
-                "entry_zone": "DATA UNAVAILABLE",
+                "entry_zone": err_status,
                 "stop_loss": None,
                 "target_levels": [],
                 "target_1": None,
                 "target_2": None,
                 "risk_reward": "N/A",
                 "risk_reward_ratio": "N/A",
-                "supporting_conditions": ["Market data unavailable"],
-                "invalidation_condition": "Feed disconnected or stale",
-                "invalidation_conditions": ["Feed disconnected or stale"],
+                "supporting_conditions": [f"Market data: {err_status}"],
+                "invalidation_condition": err_status,
+                "invalidation_conditions": [err_status],
                 "signal_timestamp": now_str,
                 "data_mode": "UNAVAILABLE",
-                "capital_advice": "NO TRADING: Required market data unavailable.",
+                "capital_advice": f"NO TRADING: {err_status}.",
                 "disclaimer": "Institutional analytical signals only. Zero automated order placement.",
             }
 

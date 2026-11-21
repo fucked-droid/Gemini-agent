@@ -1078,11 +1078,18 @@ class MarketTerminalClient {
         const activeLevels = document.getElementById('active-trade-levels');
         const watchLevels = document.getElementById('watch-levels');
 
+        const safePrice = (val, def = '--') => {
+            if (val === null || val === undefined || val === '') return def;
+            const n = Number(val);
+            if (isNaN(n) || !isFinite(n) || n <= 0) return def;
+            return `${curr}${n.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        };
+
         if (classified.hasValidSetup) {
             // Active executable setup
-            const entryText = signals.entry_zone ? signals.entry_zone.replace(/₹/g, curr) : `${curr}${(signals.fixed_entry_price || spot || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-            const slText = `${curr}${(signals.stop_loss || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-            const t1Text = `${curr}${(signals.target_1 || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            const entryText = signals.entry_zone ? signals.entry_zone.replace(/₹/g, curr) : safePrice(signals.fixed_entry_price || spot, '--');
+            const slText = safePrice(signals.stop_loss, '--');
+            const t1Text = safePrice(signals.target_1, '--');
             const rrText = signals.risk_reward_ratio || '1:2.0';
 
             if (metricEntry) metricEntry.textContent = entryText;
@@ -1100,7 +1107,7 @@ class MarketTerminalClient {
             const tradeT1 = document.getElementById('trade-t1');
             if (tradeT1) tradeT1.textContent = t1Text;
             const tradeT2 = document.getElementById('trade-t2');
-            if (tradeT2) tradeT2.textContent = `${curr}${(signals.target_2 || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            if (tradeT2) tradeT2.textContent = safePrice(signals.target_2, '--');
             const tradeRr = document.getElementById('trade-rr');
             if (tradeRr) tradeRr.textContent = rrText;
 
@@ -1111,22 +1118,22 @@ class MarketTerminalClient {
             const slVal = signals.stop_loss || watch.downsideLiquidityZone || (spot * 0.995);
             const t1Val = signals.target_1 || (spot * 1.01);
 
-            if (metricEntry) metricEntry.textContent = `${curr}${entryVal ? entryVal.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
-            if (metricSl) metricSl.textContent = `${curr}${slVal ? slVal.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
-            if (metricT1) metricT1.textContent = `${curr}${t1Val ? t1Val.toLocaleString('en-IN', { minimumFractionDigits: 1 }) : 'Watch'}`;
+            if (metricEntry) metricEntry.textContent = safePrice(entryVal, 'Watch');
+            if (metricSl) metricSl.textContent = safePrice(slVal, 'Watch');
+            if (metricT1) metricT1.textContent = safePrice(t1Val, 'Watch');
             if (metricRr) metricRr.textContent = (signals.risk_reward_ratio && signals.risk_reward_ratio !== 'N/A') ? signals.risk_reward_ratio : '1:2.0';
 
             if (activeLevels) activeLevels.style.display = 'none';
             if (watchLevels) watchLevels.style.display = 'flex';
 
             const reclaimElem = document.getElementById('watch-reclaim-trigger');
-            if (reclaimElem) reclaimElem.textContent = `${curr}${(watch.bullishReclaimTrigger || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            if (reclaimElem) reclaimElem.textContent = safePrice(watch.bullishReclaimTrigger, '--');
             const liqElem = document.getElementById('watch-liquidity-zone');
-            if (liqElem) liqElem.textContent = `${curr}${(watch.downsideLiquidityZone || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            if (liqElem) liqElem.textContent = safePrice(watch.downsideLiquidityZone, '--');
             const statusElem = document.getElementById('watch-trade-status');
-            if (statusElem) statusElem.textContent = watch.tradeStatus;
+            if (statusElem) statusElem.textContent = watch.tradeStatus || 'Watching';
             const sizeElem = document.getElementById('watch-position-sizing');
-            if (sizeElem) sizeElem.textContent = watch.positionSizing;
+            if (sizeElem) sizeElem.textContent = watch.positionSizing || '0% Risk Capital';
         }
 
         // Legacy decision badge compatibility
@@ -1277,6 +1284,74 @@ class MarketTerminalClient {
         const curr = '₹';
         const smc = (analytics && analytics.smc) || (signals && signals.smc_setup) || {};
         const matrix = smc.smc_matrix || {};
+        const status = smc.status || matrix.structure_state;
+
+        // Check for insufficient or invalid data conditions
+        if (status === 'INSUFFICIENT HISTORICAL DATA' || status === 'UNAVAILABLE — INVALID INPUT DATA') {
+            const stPill = document.getElementById('smc-structure-state-pill');
+            if (stPill) {
+                stPill.textContent = status;
+                stPill.className = 'intel-pill pill-muted';
+            }
+
+            const bosVal = document.getElementById('smc-bos-val');
+            const bosSub = document.getElementById('smc-bos-sub');
+            if (bosVal) {
+                bosVal.textContent = status;
+                bosVal.className = 'v text-muted';
+            }
+            if (bosSub) bosSub.textContent = status;
+
+            const chochVal = document.getElementById('smc-choch-val');
+            const chochSub = document.getElementById('smc-choch-sub');
+            if (chochVal) {
+                chochVal.textContent = status;
+                chochVal.className = 'v text-muted';
+            }
+            if (chochSub) chochSub.textContent = status;
+
+            const sweepPill = document.getElementById('smc-sweep-pill');
+            if (sweepPill) sweepPill.textContent = status;
+
+            const sslVal = document.getElementById('smc-ssl-val');
+            const sslSub = document.getElementById('smc-ssl-sub');
+            if (sslVal) { sslVal.textContent = status; sslVal.className = 'v text-muted'; }
+            if (sslSub) sslSub.textContent = status;
+
+            const bslVal = document.getElementById('smc-bsl-val');
+            const bslSub = document.getElementById('smc-bsl-sub');
+            if (bslVal) { bslVal.textContent = status; bslVal.className = 'v text-muted'; }
+            if (bslSub) bslSub.textContent = status;
+
+            const obPill = document.getElementById('smc-ob-pill');
+            if (obPill) obPill.textContent = status;
+
+            const bullObRange = document.getElementById('smc-bull-ob-range');
+            const bullObMt = document.getElementById('smc-bull-ob-mt');
+            if (bullObRange) { bullObRange.textContent = status; bullObRange.className = 'v text-muted'; }
+            if (bullObMt) bullObMt.textContent = status;
+
+            const bearObRange = document.getElementById('smc-bear-ob-range');
+            const bearObMt = document.getElementById('smc-bear-ob-mt');
+            if (bearObRange) { bearObRange.textContent = status; bearObRange.className = 'v text-muted'; }
+            if (bearObMt) bearObMt.textContent = status;
+
+            const fvgPill = document.getElementById('smc-fvg-pill');
+            if (fvgPill) fvgPill.textContent = status;
+
+            const bullFvgRange = document.getElementById('smc-bull-fvg-range');
+            const bullFvgCe = document.getElementById('smc-bull-fvg-ce');
+            if (bullFvgRange) { bullFvgRange.textContent = status; bullFvgRange.className = 'v text-muted'; }
+            if (bullFvgCe) bullFvgCe.textContent = status;
+
+            const bearFvgRange = document.getElementById('smc-bear-fvg-range');
+            const bearFvgCe = document.getElementById('smc-bear-fvg-ce');
+            if (bearFvgRange) { bearFvgRange.textContent = status; bearFvgRange.className = 'v text-muted'; }
+            if (bearFvgCe) bearFvgCe.textContent = status;
+
+            return;
+        }
+
         const bos = matrix.bos || null;
         const choch = matrix.choch || null;
         const structureState = matrix.structure_state || smc.setup_type || 'NEUTRAL';
@@ -1294,12 +1369,15 @@ class MarketTerminalClient {
             stPill.className = `intel-pill ${structureState.includes('BULL') ? 'pill-green' : (structureState.includes('BEAR') ? 'pill-red' : 'pill-yellow')}`;
         }
 
-        // BOS & CHoCH
+        // BOS & CHoCH (Only CONFIRMED if valid levels and confirmed flag is true)
         const bosVal = document.getElementById('smc-bos-val');
         const bosSub = document.getElementById('smc-bos-sub');
         if (bosVal) {
-            if (bos) {
-                bosVal.textContent = `${mapper.formatEnumLabel(bos.type)} (${curr}${Number(bos.broken_level).toLocaleString('en-IN', { minimumFractionDigits: 1 })})`;
+            const brokenLvl = bos ? (bos.broken_level || bos.level) : null;
+            const isConfirmed = bos && (bos.confirmed === true || bos.detected === true) && brokenLvl != null && !isNaN(brokenLvl) && isFinite(brokenLvl) && Number(brokenLvl) > 0;
+
+            if (isConfirmed) {
+                bosVal.textContent = `${mapper.formatEnumLabel(bos.type)} (${curr}${Number(brokenLvl).toLocaleString('en-IN', { minimumFractionDigits: 1 })})`;
                 bosVal.className = `v ${bos.type.includes('BULL') ? 'text-green' : 'text-red'}`;
             } else {
                 bosVal.textContent = 'No Active BOS';
@@ -1307,14 +1385,20 @@ class MarketTerminalClient {
             }
         }
         if (bosSub) {
-            bosSub.textContent = bos ? `Breakout at ${curr}${Number(bos.break_candle_price || bos.broken_level).toFixed(1)} • Trend: ${bos.trend}` : 'Awaiting structural swing high/low breakout';
+            const brokenLvl = bos ? (bos.broken_level || bos.level) : null;
+            const breakPrice = bos ? (bos.break_candle_price || brokenLvl) : null;
+            const isConfirmed = bos && (bos.confirmed === true || bos.detected === true) && brokenLvl != null && !isNaN(brokenLvl) && isFinite(brokenLvl) && Number(brokenLvl) > 0;
+            bosSub.textContent = isConfirmed ? `Breakout at ${curr}${Number(breakPrice).toFixed(1)} • Trend: ${bos.trend || 'Confirmed'}` : 'Awaiting structural swing high/low breakout';
         }
 
         const chochVal = document.getElementById('smc-choch-val');
         const chochSub = document.getElementById('smc-choch-sub');
         if (chochVal) {
-            if (choch) {
-                chochVal.textContent = `${mapper.formatEnumLabel(choch.type)} (${curr}${Number(choch.broken_level).toLocaleString('en-IN', { minimumFractionDigits: 1 })})`;
+            const brokenLvl = choch ? (choch.broken_level || choch.level) : null;
+            const isConfirmed = choch && (choch.confirmed === true || choch.detected === true) && brokenLvl != null && !isNaN(brokenLvl) && isFinite(brokenLvl) && Number(brokenLvl) > 0;
+
+            if (isConfirmed) {
+                chochVal.textContent = `${mapper.formatEnumLabel(choch.type)} (${curr}${Number(brokenLvl).toLocaleString('en-IN', { minimumFractionDigits: 1 })})`;
                 chochVal.className = `v ${choch.type.includes('BULL') ? 'text-cyan' : 'text-yellow'}`;
             } else {
                 chochVal.textContent = 'No CHoCH Detected';
@@ -1322,7 +1406,9 @@ class MarketTerminalClient {
             }
         }
         if (chochSub) {
-            chochSub.textContent = choch ? `Character Shift: ${mapper.formatEnumLabel(choch.state || 'Shift Confirmed')}` : 'Price conforming to prevailing directional trend';
+            const brokenLvl = choch ? (choch.broken_level || choch.level) : null;
+            const isConfirmed = choch && (choch.confirmed === true || choch.detected === true) && brokenLvl != null && !isNaN(brokenLvl) && isFinite(brokenLvl) && Number(brokenLvl) > 0;
+            chochSub.textContent = isConfirmed ? `Character Shift: ${mapper.formatEnumLabel(choch.state || 'Shift Confirmed')}` : 'Price conforming to prevailing directional trend';
         }
 
         // Sweeps
@@ -1336,22 +1422,30 @@ class MarketTerminalClient {
 
         const sslVal = document.getElementById('smc-ssl-val');
         const sslSub = document.getElementById('smc-ssl-sub');
+        const sslPrice = sslSweep ? (sslSweep.swept_level || sslSweep.sweep_wick_low) : null;
+        const hasValidSsl = sslSweep && sslPrice != null && !isNaN(sslPrice) && isFinite(sslPrice) && Number(sslPrice) > 0;
+
         if (sslVal) {
-            sslVal.textContent = sslSweep ? `Swept at ${curr}${Number(sslSweep.swept_level).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Protected (No Sweep)';
-            sslVal.className = `v ${sslSweep ? 'text-green' : 'text-muted'}`;
+            sslVal.textContent = hasValidSsl ? `Swept at ${curr}${Number(sslPrice).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Protected (No Sweep)';
+            sslVal.className = `v ${hasValidSsl ? 'text-green' : 'text-muted'}`;
         }
         if (sslSub) {
-            sslSub.textContent = sslSweep ? `Wick Low: ${curr}${Number(sslSweep.low_price).toFixed(1)} (${sslSweep.bars_ago || 0} bars ago) • Stop hunt absorbed` : 'Sell-side liquidity resting below session swing low';
+            const wickLow = sslSweep ? (sslSweep.low_price || sslSweep.sweep_wick_low || sslPrice) : null;
+            sslSub.textContent = hasValidSsl && wickLow != null && !isNaN(wickLow) ? `Wick Low: ${curr}${Number(wickLow).toFixed(1)} (${sslSweep.bars_ago || 0} bars ago) • Stop hunt absorbed` : 'Sell-side liquidity resting below session swing low';
         }
 
         const bslVal = document.getElementById('smc-bsl-val');
         const bslSub = document.getElementById('smc-bsl-sub');
+        const bslPrice = bslSweep ? (bslSweep.swept_level || bslSweep.sweep_wick_high) : null;
+        const hasValidBsl = bslSweep && bslPrice != null && !isNaN(bslPrice) && isFinite(bslPrice) && Number(bslPrice) > 0;
+
         if (bslVal) {
-            bslVal.textContent = bslSweep ? `Swept at ${curr}${Number(bslSweep.swept_level).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Overhead Target Pool';
-            bslVal.className = `v ${bslSweep ? 'text-red' : 'text-yellow'}`;
+            bslVal.textContent = hasValidBsl ? `Swept at ${curr}${Number(bslPrice).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Overhead Target Pool';
+            bslVal.className = `v ${hasValidBsl ? 'text-red' : 'text-yellow'}`;
         }
         if (bslSub) {
-            bslSub.textContent = bslSweep ? `Wick High: ${curr}${Number(bslSweep.high_price).toFixed(1)} • Buyers rejected at high` : 'Resting buy stops above recent swing highs';
+            const wickHigh = bslSweep ? (bslSweep.high_price || bslSweep.sweep_wick_high || bslPrice) : null;
+            bslSub.textContent = hasValidBsl && wickHigh != null && !isNaN(wickHigh) ? `Wick High: ${curr}${Number(wickHigh).toFixed(1)} • Buyers rejected at high` : 'Resting buy stops above recent swing highs';
         }
 
         // Order Blocks
@@ -1362,22 +1456,28 @@ class MarketTerminalClient {
 
         const bullObRange = document.getElementById('smc-bull-ob-range');
         const bullObMt = document.getElementById('smc-bull-ob-mt');
+        const validBullOb = bullOb && bullOb.ob_low != null && bullOb.ob_top != null && !isNaN(bullOb.ob_low) && !isNaN(bullOb.ob_top) && isFinite(bullOb.ob_low) && isFinite(bullOb.ob_top);
+
         if (bullObRange) {
-            bullObRange.textContent = bullOb ? `${curr}${Number(bullOb.ob_low).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bullOb.ob_top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'None in Immediate Range';
-            bullObRange.className = `v ${bullOb ? 'text-yellow' : 'text-muted'}`;
+            bullObRange.textContent = validBullOb ? `${curr}${Number(bullOb.ob_low).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bullOb.ob_top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'None in Immediate Range';
+            bullObRange.className = `v ${validBullOb ? 'text-yellow' : 'text-muted'}`;
         }
         if (bullObMt) {
-            bullObMt.textContent = bullOb ? `Mean Threshold (MT 50%): ${curr}${Number(bullOb.mean_threshold).toFixed(1)} • ${bullOb.is_mitigated ? 'Mitigated' : 'Unmitigated (Fresh Defense)'}` : 'No active bullish institutional accumulation block beneath price';
+            const mtVal = bullOb ? (bullOb.ob_mean_threshold || bullOb.mean_threshold) : null;
+            bullObMt.textContent = validBullOb && mtVal != null && !isNaN(mtVal) ? `Mean Threshold (MT 50%): ${curr}${Number(mtVal).toFixed(1)} • ${bullOb.is_mitigated ? 'Mitigated' : 'Unmitigated (Fresh Defense)'}` : 'No active bullish institutional accumulation block beneath price';
         }
 
         const bearObRange = document.getElementById('smc-bear-ob-range');
         const bearObMt = document.getElementById('smc-bear-ob-mt');
+        const validBearOb = bearOb && bearOb.ob_low != null && bearOb.ob_top != null && !isNaN(bearOb.ob_low) && !isNaN(bearOb.ob_top) && isFinite(bearOb.ob_low) && isFinite(bearOb.ob_top);
+
         if (bearObRange) {
-            bearObRange.textContent = bearOb ? `${curr}${Number(bearOb.ob_low).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bearOb.ob_top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Clear Runway Overhead';
-            bearObRange.className = `v ${bearOb ? 'text-red' : 'text-muted'}`;
+            bearObRange.textContent = validBearOb ? `${curr}${Number(bearOb.ob_low).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bearOb.ob_top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'Clear Runway Overhead';
+            bearObRange.className = `v ${validBearOb ? 'text-red' : 'text-muted'}`;
         }
         if (bearObMt) {
-            bearObMt.textContent = bearOb ? `Mean Threshold (MT 50%): ${curr}${Number(bearOb.mean_threshold).toFixed(1)} • Overhead Supply` : 'No opposing supply barrier beneath Target 1';
+            const mtVal = bearOb ? (bearOb.ob_mean_threshold || bearOb.mean_threshold) : null;
+            bearObMt.textContent = validBearOb && mtVal != null && !isNaN(mtVal) ? `Mean Threshold (MT 50%): ${curr}${Number(mtVal).toFixed(1)} • Overhead Supply` : 'No opposing supply barrier beneath Target 1';
         }
 
         // Fair Value Gaps
@@ -1388,22 +1488,29 @@ class MarketTerminalClient {
 
         const bullFvgRange = document.getElementById('smc-bull-fvg-range');
         const bullFvgCe = document.getElementById('smc-bull-fvg-ce');
+        const validBullFvg = bullFvg && bullFvg.bottom != null && bullFvg.top != null && !isNaN(bullFvg.bottom) && !isNaN(bullFvg.top) && isFinite(bullFvg.bottom) && isFinite(bullFvg.top);
+
         if (bullFvgRange) {
-            bullFvgRange.textContent = bullFvg ? `${curr}${Number(bullFvg.bottom).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bullFvg.top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'No Active Bullish FVG';
-            bullFvgRange.className = `v ${bullFvg ? 'text-cyan' : 'text-muted'}`;
+            bullFvgRange.textContent = validBullFvg ? `${curr}${Number(bullFvg.bottom).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bullFvg.top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'No Active Bullish FVG';
+            bullFvgRange.className = `v ${validBullFvg ? 'text-cyan' : 'text-muted'}`;
         }
         if (bullFvgCe) {
-            bullFvgCe.textContent = bullFvg ? `Consequent Encroachment (CE 50%): ${curr}${Number(bullFvg.consequent_encroachment).toFixed(1)} (Gap: ${Number(bullFvg.gap_size).toFixed(1)} pts)` : 'Price action fully rebalanced';
+            const ceVal = bullFvg ? bullFvg.consequent_encroachment : null;
+            const gapSize = bullFvg ? bullFvg.gap_size : 0;
+            bullFvgCe.textContent = validBullFvg && ceVal != null && !isNaN(ceVal) ? `Consequent Encroachment (CE 50%): ${curr}${Number(ceVal).toFixed(1)} (Gap: ${Number(gapSize).toFixed(1)} pts)` : 'Price action fully rebalanced';
         }
 
         const bearFvgRange = document.getElementById('smc-bear-fvg-range');
         const bearFvgCe = document.getElementById('smc-bear-fvg-ce');
+        const validBearFvg = bearFvg && bearFvg.bottom != null && bearFvg.top != null && !isNaN(bearFvg.bottom) && !isNaN(bearFvg.top) && isFinite(bearFvg.bottom) && isFinite(bearFvg.top);
+
         if (bearFvgRange) {
-            bearFvgRange.textContent = bearFvg ? `${curr}${Number(bearFvg.bottom).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bearFvg.top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'None in Immediate Path';
-            bearFvgRange.className = `v ${bearFvg ? 'text-red' : 'text-muted'}`;
+            bearFvgRange.textContent = validBearFvg ? `${curr}${Number(bearFvg.bottom).toLocaleString('en-IN', { minimumFractionDigits: 1 })} - ${curr}${Number(bearFvg.top).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : 'None in Immediate Path';
+            bearFvgRange.className = `v ${validBearFvg ? 'text-red' : 'text-muted'}`;
         }
         if (bearFvgCe) {
-            bearFvgCe.textContent = bearFvg ? `Consequent Encroachment (CE 50%): ${curr}${Number(bearFvg.consequent_encroachment).toFixed(1)}` : 'Clear delivery runway to overhead liquidity';
+            const ceVal = bearFvg ? bearFvg.consequent_encroachment : null;
+            bearFvgCe.textContent = validBearFvg && ceVal != null && !isNaN(ceVal) ? `Consequent Encroachment (CE 50%): ${curr}${Number(ceVal).toFixed(1)}` : 'Clear delivery runway to overhead liquidity';
         }
     }
 

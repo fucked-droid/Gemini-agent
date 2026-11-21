@@ -97,6 +97,16 @@
     };
 
     /**
+     * Format Price helper to never display ₹NaN or undefined
+     */
+    function formatPrice(val, prefix = '₹', decimals = 2) {
+        if (val === null || val === undefined || val === '') return '--';
+        const num = Number(val);
+        if (isNaN(num) || !isFinite(num)) return '--';
+        return `${prefix}${num.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+    }
+
+    /**
      * Converts any raw SNAKE_CASE or enum string into clean human-readable text.
      */
     function formatEnumLabel(value) {
@@ -107,7 +117,6 @@
         const upper = str.toUpperCase();
         if (SIGNAL_LABEL_MAP[upper]) return SIGNAL_LABEL_MAP[upper];
 
-        // Specific sub-string checks
         if (upper.includes('AVOID_SHORT') || upper.includes('AVOID SHORT')) {
             return 'STAND ASIDE — DO NOT SHORT';
         }
@@ -253,14 +262,24 @@
     }
 
     /**
-     * Resolves the Market Structure indicator (Bullish / Bearish / Neutral).
+     * Resolves the Market Structure indicator (Bullish / Bearish / Neutral / Insufficient / Unavailable).
      */
     function resolveMarketStructure(analytics) {
         if (!analytics) return { label: 'Neutral', badgeClass: 'text-yellow' };
+        const status = (analytics.market_structure && analytics.market_structure.status) ||
+                       (analytics.smc && analytics.smc.status);
+        if (status === 'INSUFFICIENT HISTORICAL DATA') {
+            return { label: 'INSUFFICIENT HISTORICAL DATA', badgeClass: 'text-muted' };
+        }
+        if (status === 'UNAVAILABLE — INVALID INPUT DATA') {
+            return { label: 'UNAVAILABLE — INVALID INPUT DATA', badgeClass: 'text-red' };
+        }
         const ms = (analytics.market_structure && analytics.market_structure.structure_state) ||
                    (analytics.market_intelligence && analytics.market_intelligence.market_structure) ||
                    'NEUTRAL';
         const str = String(ms).toUpperCase();
+        if (str.includes('INSUFFICIENT')) return { label: 'INSUFFICIENT HISTORICAL DATA', badgeClass: 'text-muted' };
+        if (str.includes('UNAVAILABLE') || str.includes('INVALID')) return { label: 'UNAVAILABLE — INVALID INPUT DATA', badgeClass: 'text-red' };
         if (str.includes('BULLISH')) return { label: 'Bullish', badgeClass: 'text-green' };
         if (str.includes('BEARISH')) return { label: 'Bearish', badgeClass: 'text-red' };
         return { label: 'Neutral', badgeClass: 'text-yellow' };
@@ -352,6 +371,7 @@
     return {
         SIGNAL_LABEL_MAP,
         formatEnumLabel,
+        formatPrice,
         classifySignal,
         resolveMarketStructure,
         resolveVwapPosition,
