@@ -704,7 +704,55 @@ class MarketTerminalClient {
             }
         });
 
-        // 3. Cumulative Volume Delta (CVD) Chart
+        // 3. Cumulative Volume Delta (CVD) Chart with Zero Baseline & Crosshair Plugin
+        const cvdZeroLinePlugin = {
+            id: 'cvdZeroLinePlugin',
+            afterDraw(chart) {
+                const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+                if (!y) return;
+                const zeroY = y.getPixelForValue(0);
+                if (zeroY >= top && zeroY <= bottom) {
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(left, zeroY);
+                    ctx.lineTo(right, zeroY);
+                    ctx.stroke();
+
+                    // "0" badge on Y axis
+                    ctx.fillStyle = '#8b949e';
+                    ctx.font = '9px "JetBrains Mono"';
+                    ctx.fillText('0', right - 12, zeroY - 2);
+                    ctx.restore();
+                }
+
+                // Draw CVD Crosshair if active
+                if (chart._crosshair && chart._crosshair.active) {
+                    const chX = chart._crosshair.x;
+                    const chY = chart._crosshair.y;
+                    if (chX >= left && chX <= right && chY >= top && chY <= bottom) {
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([2, 2]);
+
+                        ctx.beginPath();
+                        ctx.moveTo(chX, top);
+                        ctx.lineTo(chX, bottom);
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.moveTo(left, chY);
+                        ctx.lineTo(right, chY);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+            }
+        };
+
         const cvdCtx = document.getElementById('cvdChart').getContext('2d');
         this.cvdChart = new Chart(cvdCtx, {
             type: 'line',
@@ -714,27 +762,104 @@ class MarketTerminalClient {
                     label: 'CVD',
                     data: [],
                     borderColor: '#00e676',
-                    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+                    backgroundColor: 'rgba(0, 230, 118, 0.12)',
                     borderWidth: 1.5,
-                    fill: true,
-                    tension: 0.2,
+                    fill: {
+                        target: { value: 0 },
+                        above: 'rgba(0, 230, 118, 0.12)',
+                        below: 'rgba(255, 23, 68, 0.12)'
+                    },
+                    tension: 0.15,
                     pointRadius: 0,
                 }]
             },
+            plugins: [cvdZeroLinePlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
+                events: ['mousemove', 'mouseout', 'click'],
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
                 scales: {
-                    x: { display: false },
+                    x: {
+                        display: true,
+                        grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                        ticks: {
+                            color: '#6e7681',
+                            font: { family: 'JetBrains Mono', size: 9 },
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 6,
+                        }
+                    },
                     y: {
                         position: 'right',
                         grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                        ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 9 } }
+                        ticks: {
+                            color: '#8b949e',
+                            font: { family: 'JetBrains Mono', size: 9 },
+                            callback: function(val) {
+                                if (Math.abs(val) >= 1e6) return (val / 1e6).toFixed(1) + 'M';
+                                if (Math.abs(val) >= 1e3) return (val / 1e3).toFixed(0) + 'k';
+                                return val;
+                            }
+                        }
                     }
                 },
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        enabled: false,
+                        external: function(context) {
+                            const { chart, tooltip } = context;
+                            if (tooltip.opacity === 0) {
+                                chart._crosshair = { active: false };
+                                chart.draw();
+                                return;
+                            }
+                            chart._crosshair = {
+                                active: true,
+                                x: tooltip.caretX,
+                                y: tooltip.caretY
+                            };
+                            chart.draw();
+
+                            const activeIdx = tooltip.dataPoints && tooltip.dataPoints[0] ? tooltip.dataPoints[0].dataIndex : null;
+                            if (activeIdx != null && self.cvdChart && self.cvdChart.data.datasets[0]) {
+                                const val = self.cvdChart.data.datasets[0].data[activeIdx];
+                                const label = self.cvdChart.data.labels[activeIdx];
+                                const cvdLatest = document.getElementById('cvd-latest-val');
+                                if (cvdLatest && val != null) {
+                                    cvdLatest.textContent = `${val >= 0 ? '+' : ''}${val.toLocaleString('en-IN')} contracts`;
+                                    cvdLatest.style.color = val >= 0 ? '#00e676' : '#ff1744';
+                                }
+                                const upLbl = document.getElementById('cvd-updated-label');
+                                if (upLbl && label) {
+                                    upLbl.textContent = `${label} IST`;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Mouseleave on CVD canvas to restore final value
+        cvdCtx.canvas.addEventListener('mouseleave', () => {
+            if (this.cvdChart) {
+                this.cvdChart._crosshair = { active: false };
+                this.cvdChart.draw();
+                const cvdData = this.cvdChart.data.datasets[0].data;
+                if (cvdData && cvdData.length > 0) {
+                    const lastVal = cvdData[cvdData.length - 1];
+                    const cvdLatest = document.getElementById('cvd-latest-val');
+                    if (cvdLatest && lastVal != null) {
+                        cvdLatest.textContent = `${lastVal >= 0 ? '+' : ''}${lastVal.toLocaleString('en-IN')} contracts`;
+                        cvdLatest.style.color = lastVal >= 0 ? '#00e676' : '#ff1744';
+                    }
                 }
             }
         });
@@ -1166,23 +1291,63 @@ class MarketTerminalClient {
             srElem.textContent = (sup > 0 || res > 0) ? `S: ${curr}${Number(sup).toFixed(0)} | R: ${curr}${Number(res).toFixed(0)}` : `S: ${curr}-- | R: ${curr}--`;
         }
 
-        // Pressure Meter
-        const buyerPct = parseFloat(flow.buyer_percentage || 50.0);
-        const sellerPct = (100.0 - buyerPct).toFixed(1);
+        // Pressure Meter & Auction State
+        const hasValidFlow = flow && flow.status !== 'UNAVAILABLE' && flow.buyer_percentage != null && !isNaN(flow.buyer_percentage);
+        const buyerPct = hasValidFlow ? parseFloat(flow.buyer_percentage) : null;
+        const sellerPct = hasValidFlow ? parseFloat((100.0 - buyerPct).toFixed(1)) : null;
+
         const pBuy = document.getElementById('pressure-buy-bar');
-        if (pBuy) pBuy.style.width = `${buyerPct}%`;
         const pSell = document.getElementById('pressure-sell-bar');
-        if (pSell) pSell.style.width = `${sellerPct}%`;
         const bLbl = document.getElementById('buy-pct-lbl');
-        if (bLbl) bLbl.textContent = `Buyers: ${buyerPct.toFixed(1)}%`;
         const sLbl = document.getElementById('sell-pct-lbl');
-        if (sLbl) sLbl.textContent = `Sellers: ${sellerPct}%`;
+        const pStateBadge = document.getElementById('pressure-state-badge');
+
+        if (hasValidFlow && buyerPct != null) {
+            if (pBuy) pBuy.style.width = `${buyerPct}%`;
+            if (pSell) pSell.style.width = `${sellerPct}%`;
+            if (bLbl) bLbl.textContent = `Buyers: ${buyerPct.toFixed(1)}%`;
+            if (sLbl) sLbl.textContent = `Sellers: ${sellerPct.toFixed(1)}%`;
+
+            if (pStateBadge) {
+                const pState = flow.pressure_state || (buyerPct >= 55 ? 'BUYER DOMINANT' : (sellerPct >= 55 ? 'SELLER DOMINANT' : 'BALANCED'));
+                pStateBadge.textContent = pState;
+                if (pState === 'BUYER DOMINANT') {
+                    pStateBadge.className = 'intel-pill pill-green';
+                } else if (pState === 'SELLER DOMINANT') {
+                    pStateBadge.className = 'intel-pill pill-red';
+                } else {
+                    pStateBadge.className = 'intel-pill pill-muted';
+                }
+            }
+        } else {
+            if (pBuy) pBuy.style.width = '0%';
+            if (pSell) pSell.style.width = '0%';
+            if (bLbl) bLbl.textContent = 'Buyers: UNAVAILABLE';
+            if (sLbl) sLbl.textContent = 'Sellers: UNAVAILABLE';
+            if (pStateBadge) {
+                pStateBadge.textContent = 'UNAVAILABLE';
+                pStateBadge.className = 'intel-pill pill-muted';
+            }
+        }
 
         // Divergence & Institutions
         const divBadge = document.getElementById('divergence-badge');
-        if (divBadge) divBadge.textContent = mapper.formatEnumLabel(flow.divergence || 'NO_DIVERGENCE');
+        if (divBadge) {
+            const rawDiv = flow.divergence || 'NO_DIVERGENCE';
+            divBadge.textContent = mapper.formatEnumLabel(rawDiv);
+            if (rawDiv.includes('BULLISH')) {
+                divBadge.className = 'divergence-chip chip-bullish';
+            } else if (rawDiv.includes('BEARISH')) {
+                divBadge.className = 'divergence-chip chip-bearish';
+            } else {
+                divBadge.className = 'divergence-chip';
+            }
+        }
         const instSum = document.getElementById('inst-summary');
-        if (instSum) instSum.textContent = (inst.interpretation || 'Unavailable').substring(0, 50);
+        if (instSum) {
+            instSum.textContent = 'UNAVAILABLE (Intraday feed pending broker link)';
+            instSum.className = 'text-muted';
+        }
 
         // Chart Legends
         const lVwap = document.getElementById('legend-vwap');
@@ -2298,10 +2463,47 @@ class MarketTerminalClient {
                     this.cvdChart.data.datasets[0].borderColor = lastCvd >= 0 ? '#00e676' : '#ff1744';
                     this.cvdChart.data.datasets[0].backgroundColor = lastCvd >= 0 ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)';
                     this.cvdChart.update('none');
-                }
 
-                const cvdLatest = document.getElementById('cvd-latest-val');
-                if (cvdLatest) cvdLatest.textContent = `${lastCvd >= 0 ? '+' : ''}${lastCvd} contracts`;
+                    const cvdLatest = document.getElementById('cvd-latest-val');
+                    if (cvdLatest) {
+                        cvdLatest.textContent = `${lastCvd >= 0 ? '+' : ''}${lastCvd.toLocaleString('en-IN')} contracts`;
+                        cvdLatest.style.color = lastCvd >= 0 ? '#00e676' : '#ff1744';
+                    }
+
+                    // CVD Meta Information
+                    const cvdContract = document.getElementById('cvd-contract-label');
+                    if (cvdContract) {
+                        cvdContract.textContent = this.activeSymbol === 'BANKNIFTY' ? 'BANKNIFTY (Spot Derived)' : 'NIFTY (Spot Derived)';
+                    }
+                    const cvdRes = document.getElementById('cvd-res-label');
+                    if (cvdRes) {
+                        cvdRes.textContent = `${this.activeTimeframe.toUpperCase()}`;
+                    }
+                    const cvdUp = document.getElementById('cvd-updated-label');
+                    if (cvdUp) {
+                        const upStr = labels.length > 0 ? labels[labels.length - 1] : '--:--';
+                        cvdUp.textContent = `${upStr} IST`;
+                    }
+                    const cvdType = document.getElementById('cvd-type-tag');
+                    if (cvdType) {
+                        cvdType.textContent = 'ESTIMATED DELTA';
+                    }
+                    const cvdMode = document.getElementById('cvd-mode-badge');
+                    if (cvdMode) {
+                        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+                        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
+                        if (isClosed) {
+                            cvdMode.textContent = 'HISTORICAL';
+                            cvdMode.className = 'chart-status-badge badge-historical';
+                        } else if (symStat.status === 'LIVE') {
+                            cvdMode.textContent = 'LIVE';
+                            cvdMode.className = 'chart-status-badge badge-live';
+                        } else {
+                            cvdMode.textContent = data.data_mode || 'HISTORICAL';
+                            cvdMode.className = 'chart-status-badge badge-historical';
+                        }
+                    }
+                }
 
                 // 4. Update Section 5 Header & Metadata Strip
                 const lastBar = data.bars[data.bars.length - 1];

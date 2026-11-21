@@ -413,9 +413,20 @@
             <div class="orderflow-column">
                 <!-- CVD Chart -->
                 <div class="card subchart-card">
-                    <div class="card-header">
-                        <span class="card-title">Cumulative Volume Delta (CVD)</span>
-                        <span class="cvd-val" id="cvd-latest-val">+0 contracts</span>
+                    <div class="card-header cvd-panel-header">
+                        <div class="cvd-title-group">
+                            <span class="card-title">Cumulative Volume Delta</span>
+                            <span class="delta-type-tag" id="cvd-type-tag">ESTIMATED DELTA</span>
+                        </div>
+                        <div class="cvd-val-group">
+                            <span class="cvd-val" id="cvd-latest-val">+0 contracts</span>
+                            <span class="chart-status-badge badge-historical" id="cvd-mode-badge">HISTORICAL</span>
+                        </div>
+                    </div>
+                    <div class="cvd-meta-strip">
+                        <span class="cvd-meta-item">CONTRACT: <b id="cvd-contract-label">NIFTY (Spot Derived)</b></span>
+                        <span class="cvd-meta-item">RES: <b id="cvd-res-label">5M</b></span>
+                        <span class="cvd-meta-item">UPDATED: <b id="cvd-updated-label">--:-- IST</b></span>
                     </div>
                     <div class="cvd-canvas-container">
                         <canvas id="cvdChart"></canvas>
@@ -434,12 +445,16 @@
                             <div class="pressure-fill-sell" id="pressure-sell-bar" style="width: 50%;"></div>
                         </div>
                         <div class="pressure-labels">
-                            <span class="buy-lbl" id="buy-pct-lbl">Buyers: 50.0%</span>
-                            <span class="sell-lbl" id="sell-pct-lbl">Sellers: 50.0%</span>
+                            <span class="buy-lbl" id="buy-pct-lbl">Buyers: --%</span>
+                            <span class="sell-lbl" id="sell-pct-lbl">Sellers: --%</span>
                         </div>
                     </div>
+                    <div class="pressure-status-row">
+                        <span class="pressure-status-label">AUCTION STATE:</span>
+                        <span class="intel-pill pill-muted" id="pressure-state-badge">BALANCED</span>
+                    </div>
                     <div class="institutional-strip" id="institutional-strip">
-                        <span>🏛️ Institutions: <b id="inst-summary">Evaluating flow...</b></span>
+                        <span>🏛️ Institutions: <b id="inst-summary">UNAVAILABLE</b></span>
                     </div>
                 </div>
             </div>

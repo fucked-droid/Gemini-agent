@@ -131,19 +131,27 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     if sym == "NIFTY":
         try:
             from data.angel_provider import get_angel_provider
-            fut_metrics = get_angel_provider().get_futures_metrics()
-            if fut_metrics:
+            ap = get_angel_provider()
+            fut_metrics = ap.get_futures_metrics() if ap else None
+            # Only merge if provider is actively connected with verified contract volume
+            if fut_metrics and fut_metrics.get("volume", 0) > 0:
                 if fut_metrics.get("vwap", 0) > 0:
                     ind_sc["vwap"] = fut_metrics["vwap"]
                 if fut_metrics.get("buyer_percentage") is not None:
                     order_flow["buyer_percentage"] = fut_metrics["buyer_percentage"]
+                    order_flow["seller_percentage"] = fut_metrics.get("seller_percentage", 100.0 - fut_metrics["buyer_percentage"])
                 if fut_metrics.get("session_cvd") is not None:
                     order_flow["session_cvd"] = fut_metrics["session_cvd"]
                     order_flow["cvd"] = fut_metrics["cvd"]
                     order_flow["is_cvd_available"] = True
-                    order_flow["cvd_display"] = f"{fut_metrics['cvd']} contracts"
+                    order_flow["delta_type"] = "TRUE_FUTURES_CVD"
+                    order_flow["cvd_display"] = f"{fut_metrics['cvd']:+,d} contracts"
                 order_flow["nifty_future_contract"] = fut_metrics.get("contract", "")
                 order_flow["future_price"] = fut_metrics.get("fut_price", 0.0)
+            else:
+                # Retain estimated delta from index volume decomp without faking futures
+                order_flow["delta_type"] = "ESTIMATED_DELTA"
+                order_flow["nifty_future_contract"] = "N/A (Spot Index Derived)"
         except Exception as fe:
             logger.debug(f"Could not merge futures metrics: {fe}")
 

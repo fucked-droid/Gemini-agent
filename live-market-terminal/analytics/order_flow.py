@@ -36,7 +36,7 @@ class OrderFlowAnalyzer:
             Buy Vol = Volume * Buyer Ratio
             Sell Vol = Volume * (1 - Buyer Ratio)
             Bar Delta = Buy Vol - Sell Vol
-            CVD = cumsum(Bar Delta)
+            CVD = cumsum(Bar Delta), reset at session boundaries (day boundaries)
         """
         if df.empty or "Volume" not in df.columns:
             df["Buy_Volume"] = 0
@@ -60,7 +60,12 @@ class OrderFlowAnalyzer:
         df["Buy_Volume"] = buy_vol.round().astype(int)
         df["Sell_Volume"] = (vol.round().astype(int) - df["Buy_Volume"]).astype(int)
         df["Delta"] = (df["Buy_Volume"] - df["Sell_Volume"]).astype(int)
-        df["CVD"] = df["Delta"].cumsum()
+        
+        # Reset cumulative CVD at session boundaries if DatetimeIndex spans multiple dates
+        if isinstance(df.index, pd.DatetimeIndex) and len(df.index.normalize().unique()) > 1:
+            df["CVD"] = df.groupby(df.index.date)["Delta"].cumsum()
+        else:
+            df["CVD"] = df["Delta"].cumsum()
 
         return df
 
@@ -357,20 +362,23 @@ class OrderFlowAnalyzer:
             return {
                 "is_cvd_available": False,
                 "status": "UNAVAILABLE",
-                "order_flow_state": "NEUTRAL",
+                "delta_type": "UNAVAILABLE",
+                "instrument_type": "INDEX_DERIVED",
+                "order_flow_state": "UNAVAILABLE",
                 "cvd": 0,
                 "session_cvd": 0,
                 "timeframe_cvd": 0,
                 "candle_delta": 0,
                 "cumulative_volume_delta": 0,
-                "cvd_display": "CVD UNAVAILABLE",
-                "buyer_percentage": 50.0,
-                "seller_percentage": 50.0,
-                "aggression_ratio": 1.0,
-                "aggression_state": "Volume Data Unavailable",
-                "volume_ratio": 1.0,
+                "cvd_display": "UNAVAILABLE",
+                "buyer_percentage": None,
+                "seller_percentage": None,
+                "pressure_state": "UNAVAILABLE",
+                "aggression_ratio": None,
+                "aggression_state": "UNAVAILABLE",
+                "volume_ratio": None,
                 "divergence": "NONE",
-                "summary": "Trade volume data is unavailable for this instrument.",
+                "summary": "Volume feed is unavailable for this instrument.",
                 "volume_profile": {
                     "poc": last_p,
                     "vah": last_p,
@@ -402,6 +410,15 @@ class OrderFlowAnalyzer:
             agg_state = "Aggressive Sellers Driving Auction"
         else:
             agg_state = "Balanced Two-Way Auction"
+
+        # Determine Buyer vs Seller Pressure badge status
+        # (BUYER DOMINANT, SELLER DOMINANT, BALANCED, or UNAVAILABLE)
+        if buyer_pct >= 55.0:
+            pressure_state = "BUYER DOMINANT"
+        elif seller_pct >= 55.0:
+            pressure_state = "SELLER DOMINANT"
+        else:
+            pressure_state = "BALANCED"
 
         # Volume ratio vs 20-period moving average
         recent_vol = df_flow["Volume"].iloc[-1]
@@ -448,13 +465,16 @@ class OrderFlowAnalyzer:
         return {
             "is_cvd_available": True,
             "status": "AVAILABLE",
+            "delta_type": "ESTIMATED_DELTA",
+            "instrument_type": "INDEX_VOLUME_DELTA",
             "order_flow_state": state,
+            "pressure_state": pressure_state,
             "cvd": session_cvd,
             "session_cvd": session_cvd,
             "timeframe_cvd": timeframe_cvd,
             "candle_delta": candle_delta,
             "cumulative_volume_delta": session_cvd,
-            "cvd_display": f"{session_cvd:+,d} contracts",
+            "cvd_display": f"{session_cvd:+,d} contracts (EST.)",
             "buyer_percentage": round(buyer_pct, 1),
             "seller_percentage": round(seller_pct, 1),
             "total_buy_volume": int(total_buy),

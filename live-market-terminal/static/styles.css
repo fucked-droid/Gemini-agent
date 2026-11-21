@@ -904,9 +904,69 @@ body.dark-theme {
     gap: 16px;
 }
 
+.cvd-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 4px;
+}
+
+.cvd-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.delta-type-tag {
+    font-size: 0.62rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(0, 229, 255, 0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+}
+
+.cvd-val-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cvd-meta-strip {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 12px;
+    font-size: 0.66rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.cvd-meta-item b {
+    color: var(--text-secondary);
+}
+
 .cvd-canvas-container {
-    height: 180px;
-    padding: 10px;
+    height: 170px;
+    padding: 8px 10px 4px 10px;
+    position: relative;
+}
+
+.pressure-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px 8px 16px;
+}
+
+.pressure-status-label {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--text-muted);
 }
 
 .cvd-val {
