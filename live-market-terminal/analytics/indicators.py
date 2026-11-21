@@ -113,6 +113,36 @@ class TechnicalIndicators:
         return atr
 
     @staticmethod
+    def compute_adx(df: pd.DataFrame, period: int = 14) -> Tuple[pd.Series, pd.Series, pd.Series]:
+        """
+        Calculates Welles Wilder's Average Directional Index (ADX), +DI, and -DI.
+        """
+        if df.empty or len(df) < period + 1:
+            nan_s = pd.Series(np.nan, index=df.index)
+            return nan_s, nan_s, nan_s
+
+        high = df["High"].astype(float)
+        low = df["Low"].astype(float)
+        close = df["Close"].astype(float)
+
+        up_move = high.diff()
+        down_move = -low.diff()
+
+        pos_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+        neg_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+        tr = np.maximum(high - low, np.maximum(abs(high - close.shift(1)), abs(low - close.shift(1))))
+        tr_s = pd.Series(tr, index=df.index).ewm(alpha=1.0 / period, adjust=False).mean()
+
+        pos_di = 100.0 * (pd.Series(pos_dm, index=df.index).ewm(alpha=1.0 / period, adjust=False).mean() / tr_s.replace(0, np.nan)).fillna(0.0)
+        neg_di = 100.0 * (pd.Series(neg_dm, index=df.index).ewm(alpha=1.0 / period, adjust=False).mean() / tr_s.replace(0, np.nan)).fillna(0.0)
+
+        dx = 100.0 * (abs(pos_di - neg_di) / (pos_di + neg_di).replace(0, np.nan)).fillna(0.0)
+        adx = dx.ewm(alpha=1.0 / period, adjust=False).mean()
+
+        return adx, pos_di, neg_di
+
+    @staticmethod
     def compute_bollinger_bands(
         series: pd.Series, period: int = 20, std_dev: float = 2.0
     ) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:

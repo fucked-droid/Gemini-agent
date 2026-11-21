@@ -115,9 +115,27 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
         quote = client.get_quote(sym)
         cache.update_quote(sym, quote)
 
-    candles_1m = client.get_historical_candles(sym, interval="1m", days=3)
-    tf_suite = HistoricalDataManager.build_timeframe_suite(candles_1m)
-    if "daily" not in tf_suite:
+    # Build full-resolution timeframe suite directly from client feeds with adequate history
+    tf_suite = {}
+    tf_lookbacks = [("1m", 2), ("5m", 5), ("15m", 15), ("30m", 15), ("60m", 30)]
+    for tf_key, days_cnt in tf_lookbacks:
+        df_tf = client.get_historical_candles(sym, interval=tf_key, days=days_cnt)
+        if df_tf is not None and not df_tf.empty:
+            tf_suite[tf_key] = df_tf
+
+    # Fallback to 1m resampling if any timeframe is missing
+    candles_1m = tf_suite.get("1m")
+    if candles_1m is None or candles_1m.empty:
+        candles_1m = client.get_historical_candles(sym, interval="1m", days=3)
+        tf_suite["1m"] = candles_1m
+    
+    resampled_suite = HistoricalDataManager.build_timeframe_suite(candles_1m)
+    for tf_k, df_resampled in resampled_suite.items():
+        if tf_k not in tf_suite or tf_suite[tf_k].empty:
+            tf_suite[tf_k] = df_resampled
+
+    # Ensure 60-day daily macro candles exist
+    if "daily" not in tf_suite or tf_suite["daily"].empty:
         daily_candles = client.get_historical_candles(sym, interval="1d", days=60)
         if daily_candles is not None and not daily_candles.empty:
             tf_suite["daily"] = daily_candles

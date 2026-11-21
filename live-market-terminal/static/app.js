@@ -1357,25 +1357,112 @@ class MarketTerminalClient {
         const lEma20 = document.getElementById('legend-ema20');
         if (lEma20) lEma20.textContent = `${curr}${(ind.ema20 || 0).toFixed(1)}`;
 
-        // MTF Matrix Tiles
+        // MTF Matrix Tiles (All 6 Timeframes: 1m, 5m, 15m, 30m, 60m, Daily)
         if (mtf.timeframes) {
             const container = document.getElementById('mtf-container');
+            const targetTfs = ['1m', '5m', '15m', '30m', '60m', 'daily'];
             if (container) {
                 container.innerHTML = '';
-                for (const [tf, tData] of Object.entries(mtf.timeframes)) {
+                targetTfs.forEach(tf => {
+                    const tData = mtf.timeframes[tf] || {};
                     const dir = tData.direction || 'SIDEWAYS';
+                    const rawStrength = tData.trend_strength_pct != null ? tData.trend_strength_pct : (tData.confidence_pct || 50.0);
+                    const strengthLabel = tData.trend_strength_label || (rawStrength >= 75 ? 'HIGH STRENGTH' : (rawStrength >= 55 ? 'MODERATE' : 'CHOP'));
+                    const agreement = tData.indicator_agreement || '--';
+                    const lastTime = tData.last_candle_time ? (tData.last_candle_time.length >= 16 ? tData.last_candle_time.substring(11, 16) : tData.last_candle_time) : '--:--';
+
+                    const tfDisplayMap = {
+                        '1m': '1 MIN',
+                        '5m': '5 MIN',
+                        '15m': '15 MIN',
+                        '30m': '30 MIN',
+                        '60m': '60 MIN (1H)',
+                        'daily': 'DAILY MACRO'
+                    };
+
                     const tile = document.createElement('div');
                     tile.className = `mtf-tile ${dir.toLowerCase()}`;
                     tile.innerHTML = `
-                        <div class="mtf-tf">${tf}</div>
+                        <div class="mtf-tf">
+                            <span>${tfDisplayMap[tf] || tf.toUpperCase()}</span>
+                            <span class="mtf-ts">${lastTime}</span>
+                        </div>
                         <div class="mtf-dir ${dir}">${mapper.formatEnumLabel(dir)}</div>
-                        <div class="mtf-conf">${(tData.confidence_pct || 50).toFixed(0)}% Conf</div>
+                        <div class="mtf-metrics-row">
+                            <span class="mtf-strength-badge">${rawStrength.toFixed(0)}% Str</span>
+                            <span>${agreement}</span>
+                        </div>
                     `;
                     container.appendChild(tile);
+                });
+            }
+
+            // Update Overall Alignment and Tier Summaries
+            const tiered = mtf.tiered_alignment || {};
+            const compElem = document.getElementById('mtf-composite-trend');
+            if (compElem) {
+                const overallText = tiered.overall || mtf.composite_trend || 'SIDEWAYS';
+                compElem.textContent = mapper.formatEnumLabel(overallText);
+                if (overallText.includes('BULLISH')) {
+                    compElem.className = 'mtf-alignment-badge text-green';
+                } else if (overallText.includes('BEARISH')) {
+                    compElem.className = 'mtf-alignment-badge text-red';
+                } else {
+                    compElem.className = 'mtf-alignment-badge text-yellow';
                 }
             }
-            const compElem = document.getElementById('mtf-composite-trend');
-            if (compElem) compElem.textContent = mapper.formatEnumLabel(mtf.composite_trend || 'SIDEWAYS');
+
+            const stElem = document.getElementById('tier-st-val');
+            if (stElem) {
+                const stVal = tiered.short_term || '--';
+                stElem.textContent = stVal;
+                stElem.className = `tier-val ${stVal === 'BULLISH' ? 'text-green' : (stVal === 'BEARISH' ? 'text-red' : 'text-yellow')}`;
+            }
+
+            const intraElem = document.getElementById('tier-intra-val');
+            if (intraElem) {
+                const intraVal = tiered.intraday || '--';
+                intraElem.textContent = intraVal;
+                intraElem.className = `tier-val ${intraVal === 'BULLISH' ? 'text-green' : (intraVal === 'BEARISH' ? 'text-red' : 'text-yellow')}`;
+            }
+
+            const htfElem = document.getElementById('tier-htf-val');
+            if (htfElem) {
+                const htfVal = tiered.higher_timeframe || '--';
+                htfElem.textContent = htfVal;
+                htfElem.className = `tier-val ${htfVal === 'BULLISH' ? 'text-green' : (htfVal === 'BEARISH' ? 'text-red' : 'text-yellow')}`;
+            }
+
+            const expElem = document.getElementById('mtf-explanation-text');
+            if (expElem) {
+                expElem.textContent = tiered.explanation || 'Multi-tier timeframe confluence calculated from price structure, EMA slope, and ADX.';
+            }
+
+            // Update MTF Header & Metadata
+            const mtfSym = document.getElementById('mtf-sym-label');
+            if (mtfSym) mtfSym.textContent = this.activeSymbol === 'BANKNIFTY' ? 'BANKNIFTY' : 'NIFTY 50';
+
+            const mtfUp = document.getElementById('mtf-updated-label');
+            if (mtfUp) {
+                const now = new Date();
+                mtfUp.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} IST`;
+            }
+
+            const mtfMode = document.getElementById('mtf-mode-badge');
+            if (mtfMode) {
+                const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+                const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
+                if (isClosed) {
+                    mtfMode.textContent = 'HISTORICAL';
+                    mtfMode.className = 'chart-status-badge badge-historical';
+                } else if (symStat.status === 'LIVE') {
+                    mtfMode.textContent = 'LIVE';
+                    mtfMode.className = 'chart-status-badge badge-live';
+                } else {
+                    mtfMode.textContent = 'HISTORICAL';
+                    mtfMode.className = 'chart-status-badge badge-historical';
+                }
+            }
         }
 
         // Update Institutional Intelligence Console Tabs

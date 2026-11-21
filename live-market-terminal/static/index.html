@@ -462,14 +462,51 @@
 
         <!-- ROW 3: MULTI-TIMEFRAME RADAR & FORECASTS -->
         <div class="analytics-row-grid">
-            <!-- Multi-Timeframe Radar (1m to 60m) -->
+            <!-- Multi-Timeframe Radar (1m to Daily) -->
             <div class="card mtf-card">
-                <div class="card-header">
-                    <span class="card-title">Multi-Timeframe Trend Matrix</span>
-                    <span class="mtf-alignment-badge" id="mtf-composite-trend">ALIGNED</span>
+                <div class="card-header mtf-panel-header">
+                    <div class="mtf-title-group">
+                        <span class="card-title">Multi-Timeframe Trend Matrix</span>
+                        <span class="chart-status-badge badge-historical" id="mtf-mode-badge">HISTORICAL</span>
+                    </div>
+                    <div class="mtf-header-right">
+                        <span class="mtf-overall-label">OVERALL:</span>
+                        <span class="mtf-alignment-badge" id="mtf-composite-trend">CALCULATING...</span>
+                    </div>
                 </div>
-                <div class="mtf-grid" id="mtf-container">
-                    <!-- Populated dynamically via JS -->
+
+                <!-- MTF Metadata Strip -->
+                <div class="mtf-meta-strip">
+                    <span class="mtf-meta-item">INSTRUMENT: <b id="mtf-sym-label">NIFTY 50</b></span>
+                    <span class="mtf-meta-item">LAYERS: <b>6 TIMEFRAMES</b></span>
+                    <span class="mtf-meta-item">UPDATED: <b id="mtf-updated-label">--:-- IST</b></span>
+                </div>
+
+                <!-- Tier Alignment Summary Cards -->
+                <div class="mtf-tiers-summary">
+                    <div class="mtf-tier-card">
+                        <span class="tier-name">SHORT-TERM (1m/5m)</span>
+                        <span class="tier-val" id="tier-st-val">--</span>
+                    </div>
+                    <div class="mtf-tier-card">
+                        <span class="tier-name">INTRADAY (15m/30m/60m)</span>
+                        <span class="tier-val" id="tier-intra-val">--</span>
+                    </div>
+                    <div class="mtf-tier-card">
+                        <span class="tier-name">MACRO (Daily)</span>
+                        <span class="tier-val" id="tier-htf-val">--</span>
+                    </div>
+                </div>
+
+                <!-- 6 Timeframe Grid -->
+                <div class="mtf-grid-6" id="mtf-container">
+                    <!-- Populated dynamically via JS with 1m, 5m, 15m, 30m, 60m, Daily -->
+                </div>
+
+                <!-- Confluence Explanation Footer -->
+                <div class="mtf-explanation-box">
+                    <span class="mtf-exp-icon">🔍</span>
+                    <span class="mtf-exp-text" id="mtf-explanation-text">Analyzing timeframe confluence...</span>
                 </div>
             </div>
 
