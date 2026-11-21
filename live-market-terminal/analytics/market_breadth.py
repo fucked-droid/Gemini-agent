@@ -22,34 +22,58 @@ class MarketBreadthAnalyzer:
     def compute_breadth_from_constituents(cls, constituent_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Computes Advance/Decline counts and ratio from constituent price changes.
+        Never displays zero values as valid readings when feed data is missing or stale.
         """
         if not constituent_data:
-            # Fallback based on canonical baseline
             return {
-                "advances": 32,
-                "declines": 17,
-                "unchanged": 1,
-                "total": 50,
-                "adr": 1.88,
-                "breadth_score": 0.30,
-                "breadth_condition": "MODERATE_BULLISH_EXPANSION",
+                "status": "UNAVAILABLE",
+                "advances": None,
+                "declines": None,
+                "unchanged": None,
+                "total": 0,
+                "adr": None,
+                "breadth_score": 0.0,
+                "breadth_condition": "UNAVAILABLE",
             }
 
         adv = 0
         dec = 0
         unch = 0
+        has_real_quote = False
 
         for stock in constituent_data:
-            chg = float(stock.get("change", stock.get("change_pct", 0.0)))
-            if chg > 0.05:
-                adv += 1
-            elif chg < -0.05:
-                dec += 1
-            else:
-                unch += 1
+            if "change" in stock or "change_pct" in stock:
+                has_real_quote = True
+                chg = float(stock.get("change", stock.get("change_pct", 0.0)))
+                if chg > 0.05:
+                    adv += 1
+                elif chg < -0.05:
+                    dec += 1
+                else:
+                    unch += 1
 
         total = adv + dec + unch
-        adr = round(adv / dec, 2) if dec > 0 else (adv if adv > 0 else 1.0)
+        # If no constituent had real quote changes or total non-zero volume/price changes
+        if not has_real_quote or (adv == 0 and dec == 0 and unch == len(constituent_data)):
+            return {
+                "status": "UNAVAILABLE",
+                "advances": None,
+                "declines": None,
+                "unchanged": None,
+                "total": 0,
+                "adr": None,
+                "breadth_score": 0.0,
+                "breadth_condition": "UNAVAILABLE",
+            }
+
+        # Safe ADR calculation: avoid division by zero
+        if dec > 0:
+            adr = round(adv / dec, 2)
+        elif adv > 0:
+            adr = round(float(adv), 2)
+        else:
+            adr = 1.0
+
         score = round((adv - dec) / total, 2) if total > 0 else 0.0
 
         if score >= 0.40:
@@ -64,6 +88,7 @@ class MarketBreadthAnalyzer:
             condition = "BALANCED_CHOP_BREADTH"
 
         return {
+            "status": "AVAILABLE",
             "advances": adv,
             "declines": dec,
             "unchanged": unch,

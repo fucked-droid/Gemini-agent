@@ -787,7 +787,10 @@ class MarketTerminalClient {
         }
         const msSubElem = document.getElementById('intel-structure-sub');
         if (msSubElem) {
-            msSubElem.textContent = mapper.formatEnumLabel(struct.structure_state || 'NEUTRAL');
+            const rawStruct = struct.structure_state || 'NEUTRAL_CONSOLIDATION';
+            const rawEvent = struct.event || 'NONE';
+            const breakoutText = rawEvent !== 'NONE' && rawEvent !== 'NO_STRUCTURE_EVENT' ? ` • ${mapper.formatEnumLabel(rawEvent)}` : '';
+            msSubElem.textContent = `${mapper.formatEnumLabel(rawStruct)}${breakoutText}`;
         }
 
         // Indicator 2: VWAP Position (Above VWAP / Below VWAP / At VWAP)
@@ -814,7 +817,7 @@ class MarketTerminalClient {
             vwapSubElem.textContent = `Session VWAP: ${curr}${vwapVal.toLocaleString('en-IN', { minimumFractionDigits: 1 })}`;
         }
 
-        // Indicator 3: Order Flow (Buyers Dominating / Sellers Dominating / Balanced)
+        // Indicator 3: Order Flow (Buyers Dominating / Sellers Dominating / Balanced / Unavailable)
         const flowResolved = mapper.resolveOrderFlow(flow);
         const flowValElem = document.getElementById('intel-flow-val');
         if (flowValElem) {
@@ -823,13 +826,27 @@ class MarketTerminalClient {
         }
         const flowPillElem = document.getElementById('intel-flow-pill');
         if (flowPillElem) {
-            flowPillElem.textContent = `${flowResolved.buyerPct.toFixed(1)}% BUY`;
-            flowPillElem.className = `intel-pill ${flowResolved.buyerPct >= 52 ? 'pill-green' : (flowResolved.buyerPct <= 48 ? 'pill-red' : 'pill-yellow')}`;
+            if (flowResolved.label === 'Unavailable') {
+                flowPillElem.textContent = 'NO DATA';
+                flowPillElem.className = 'intel-pill pill-muted';
+            } else {
+                flowPillElem.textContent = `${flowResolved.buyerPct.toFixed(1)}% BUY`;
+                flowPillElem.className = `intel-pill ${flowResolved.buyerPct >= 52 && (flow.session_cvd > 0 || flow.cvd > 0) ? 'pill-green' : (flowResolved.buyerPct <= 48 && (flow.session_cvd < 0 || flow.cvd < 0) ? 'pill-red' : 'pill-yellow')}`;
+            }
         }
         const flowSubElem = document.getElementById('intel-flow-sub');
         if (flowSubElem) {
-            const sessionCvd = (flow.session_cvd != null) ? flow.session_cvd : (flow.cvd || 0);
-            flowSubElem.textContent = `CVD: ${sessionCvd >= 0 ? '+' : ''}${sessionCvd.toLocaleString()} contracts | ${mapper.formatEnumLabel(flow.order_flow_state || 'Balanced')}`;
+            if (flowResolved.label === 'Unavailable') {
+                flowSubElem.textContent = 'CVD: Unavailable | Zero Tick Feed';
+            } else {
+                const sessionCvd = (flow.session_cvd != null) ? flow.session_cvd : (flow.cvd || 0);
+                const rawState = flow.order_flow_state || 'NEUTRAL_CHOP_FLOW';
+                // If buyer_percentage is 50% or CVD is +0, strictly show Balanced
+                const displayState = (sessionCvd === 0 || Math.abs(flowResolved.buyerPct - 50.0) < 0.1)
+                    ? 'Tape Balanced'
+                    : mapper.formatEnumLabel(rawState);
+                flowSubElem.textContent = `CVD: ${sessionCvd >= 0 ? '+' : ''}${sessionCvd.toLocaleString()} contracts | ${displayState}`;
+            }
         }
 
         // Indicator 4: Options Sentiment (Bullish / Bearish / Neutral / Unavailable)
@@ -865,25 +882,7 @@ class MarketTerminalClient {
             }
         }
 
-        // Market Intelligence Footer Strip
-        const breadthElem = document.getElementById('intel-breadth-val');
-        if (breadthElem) {
-            if (false) {
-                breadthElem.textContent = 'Global Crypto 24/7 Liquidity Flow';
-            } else {
-                breadthElem.textContent = `${breadth.advances || 0} Adv / ${breadth.declines || 0} Dec (ADR: ${breadth.adr || 1.0})`;
-            }
-        }
-        const instElem = document.getElementById('intel-inst-val');
-        if (instElem) {
-            instElem.textContent = (inst.interpretation || 'Evaluating flow...').substring(0, 42);
-        }
-        const srElem = document.getElementById('intel-sr-val');
-        if (srElem) {
-            const sup = mi.put_wall || analytics.options_intelligence?.put_wall || analytics.options_intelligence?.major_support_strike || struct.nearest_support || 0;
-            const res = mi.call_wall || analytics.options_intelligence?.call_wall || analytics.options_intelligence?.major_resistance_strike || struct.nearest_resistance || 0;
-            srElem.textContent = (sup > 0 || res > 0) ? `S: ${curr}${Number(sup).toFixed(0)} | R: ${curr}${Number(res).toFixed(0)}` : `S: ${curr}-- | R: ${curr}--`;
-        }
+        // Tile 5: Market Regime & Volatility
         const regimeData = analytics.market_regime || (this.cacheSignals[this.activeSymbol] && this.cacheSignals[this.activeSymbol].market_regime) || {};
         const regimeName = regimeData.regime || mtf.composite_trend || 'EVALUATING';
         const regimePill = document.getElementById('intel-regime-pill');
@@ -891,8 +890,6 @@ class MarketTerminalClient {
             regimePill.textContent = mapper.formatEnumLabel(regimeName);
             regimePill.className = `panel-sub-badge ${regimeName.includes('BULL') ? 'text-green' : (regimeName.includes('BEAR') ? 'text-red' : 'text-yellow')}`;
         }
-
-        // Tile 5: Market Regime & Volatility
         const regimeValElem = document.getElementById('intel-regime-val');
         const regimePillElem = document.getElementById('intel-regime-mode-pill');
         const regimeSubElem = document.getElementById('intel-regime-sub');
@@ -914,21 +911,49 @@ class MarketTerminalClient {
         // Tile 6: News & Event Risk
         const newsData = analytics.news_and_events || (this.cacheSignals[this.activeSymbol] && this.cacheSignals[this.activeSymbol].news_and_events) || {};
         const riskLevel = newsData.event_risk_level || 'LOW';
-        const sentimentLabel = newsData.market_sentiment_label || 'NEUTRAL';
+        const directionalBias = newsData.directional_bias || (newsData.market_sentiment_label ? mapper.formatEnumLabel(newsData.market_sentiment_label) : 'Neutral');
         const riskPillElem = document.getElementById('intel-risk-pill');
         const newsValElem = document.getElementById('intel-news-val');
         const newsSubElem = document.getElementById('intel-news-sub');
         if (riskPillElem) {
             riskPillElem.textContent = `${riskLevel} RISK`;
-            riskPillElem.className = `intel-pill ${riskLevel === 'HIGH' ? 'pill-red' : (riskLevel === 'MODERATE' ? 'pill-yellow' : 'pill-green')}`;
+            riskPillElem.className = `intel-pill ${riskLevel === 'HIGH' ? 'pill-red' : (riskLevel === 'MODERATE' ? 'pill-yellow' : (riskLevel === 'UNAVAILABLE' ? 'pill-muted' : 'pill-green'))}`;
         }
         if (newsValElem) {
-            newsValElem.textContent = mapper.formatEnumLabel(sentimentLabel);
-            newsValElem.className = `tile-val ${sentimentLabel.includes('BULL') ? 'text-green' : (sentimentLabel.includes('BEAR') ? 'text-red' : 'text-yellow')}`;
+            // Directional bias strictly displayed separately as Bullish / Bearish / Neutral
+            newsValElem.textContent = directionalBias;
+            newsValElem.className = `tile-val ${directionalBias.includes('Bull') ? 'text-green' : (directionalBias.includes('Bear') ? 'text-red' : 'text-yellow')}`;
         }
         if (newsSubElem) {
-            const nextEvent = newsData.next_macro_event ? `${newsData.next_macro_event.event_name} (${newsData.next_macro_event.impact})` : 'Macro calendar clear';
+            const nextEvent = newsData.next_macro_event ? `${newsData.next_macro_event.event_name || newsData.next_macro_event.name} (${newsData.next_macro_event.impact})` : 'Macro calendar clear • No event lock';
             newsSubElem.textContent = nextEvent;
+        }
+
+        // Market Intelligence Footer Strip
+        const breadthElem = document.getElementById('intel-breadth-val');
+        if (breadthElem) {
+            if (breadth.status === 'UNAVAILABLE' || (breadth.advances == null && breadth.declines == null) || (breadth.advances === 0 && breadth.declines === 0 && (!breadth.total || breadth.total === 0))) {
+                breadthElem.textContent = 'UNAVAILABLE';
+            } else {
+                const adv = breadth.advances != null ? breadth.advances : '--';
+                const dec = breadth.declines != null ? breadth.declines : '--';
+                const adrStr = (breadth.adr != null && !isNaN(breadth.adr)) ? breadth.adr : '--';
+                breadthElem.textContent = `${adv} Adv / ${dec} Dec (ADR: ${adrStr})`;
+            }
+        }
+        const instElem = document.getElementById('intel-inst-val');
+        if (instElem) {
+            if (inst.status === 'UNAVAILABLE' || !inst.status) {
+                instElem.textContent = 'UNAVAILABLE';
+            } else {
+                instElem.textContent = (inst.interpretation || 'Evaluating flow...').substring(0, 42);
+            }
+        }
+        const srElem = document.getElementById('intel-sr-val');
+        if (srElem) {
+            const sup = mi.put_wall || analytics.options_intelligence?.put_wall || analytics.options_intelligence?.major_support_strike || struct.nearest_support || 0;
+            const res = mi.call_wall || analytics.options_intelligence?.call_wall || analytics.options_intelligence?.major_resistance_strike || struct.nearest_resistance || 0;
+            srElem.textContent = (sup > 0 || res > 0) ? `S: ${curr}${Number(sup).toFixed(0)} | R: ${curr}${Number(res).toFixed(0)}` : `S: ${curr}-- | R: ${curr}--`;
         }
 
         // Pressure Meter

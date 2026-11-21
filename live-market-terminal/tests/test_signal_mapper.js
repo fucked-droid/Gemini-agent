@@ -98,10 +98,13 @@ assert.strictEqual(SignalMapper.resolveVwapPosition(25200.0, 25000.0).label, 'Ab
 assert.strictEqual(SignalMapper.resolveVwapPosition(24800.0, 25000.0).label, 'Below VWAP');
 assert.strictEqual(SignalMapper.resolveVwapPosition(25002.0, 25000.0).label, 'At VWAP');
 
-// Order Flow (Buyers Dominating / Sellers Dominating / Balanced)
-assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 58.0 }).label, 'Buyers Dominating');
-assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 42.0 }).label, 'Sellers Dominating');
-assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 50.0 }).label, 'Balanced');
+// Order Flow (Buyers Dominating / Sellers Dominating / Balanced / Unavailable)
+assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 58.0, session_cvd: 1500 }).label, 'Buyers Dominating');
+assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 42.0, session_cvd: -1200 }).label, 'Sellers Dominating');
+assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 50.0, session_cvd: 0 }).label, 'Balanced');
+assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 50.0, session_cvd: 100 }).label, 'Balanced');
+assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 55.0, session_cvd: 0 }).label, 'Balanced');
+assert.strictEqual(SignalMapper.resolveOrderFlow({ status: 'UNAVAILABLE' }).label, 'Unavailable');
 
 // Options Sentiment (Bullish / Bearish / Neutral / Unavailable)
 assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Bullish' }, 'NIFTY').label, 'Bullish');

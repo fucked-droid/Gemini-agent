@@ -456,30 +456,39 @@ class OptionsAnalytics:
                     "is_max_pain": (stk == max_pain_strike),
                 })
 
-            # Overall Sentiment Score
+            # Overall Sentiment Score & Verification
+            # Require both PCR and genuine Net OI addition before claiming heavy writing support
             score = 0
-            if pcr_oi >= 1.15:
+            if pcr_oi >= 1.20:
                 score += 1
-            elif pcr_oi <= 0.85:
+            elif pcr_oi <= 0.80:
                 score -= 1
 
-            if tot_pe_chg > tot_ce_chg:
+            if tot_pe_chg > 0 and tot_pe_chg > tot_ce_chg:
                 score += 1
-            elif tot_ce_chg > tot_pe_chg:
+            elif tot_ce_chg > 0 and tot_ce_chg > tot_pe_chg:
                 score -= 1
 
-            if score > 0:
+            if score >= 2 and tot_pe_chg > 0:
                 sentiment = "Positive"
                 color_class = "text-green"
-                details = f"Bullish PCR ({pcr_oi:.2f}) with heavy Put writer support (+{tot_pe_chg:,} PE OI)."
-            elif score < 0:
+                details = f"Bullish PCR ({pcr_oi:.2f}) with net Put additions (+{tot_pe_chg:,} PE OI chg)."
+            elif score <= -2 and tot_ce_chg > 0:
                 sentiment = "Negative"
                 color_class = "text-red"
-                details = f"Bearish PCR ({pcr_oi:.2f}) with aggressive Call writer resistance (+{tot_ce_chg:,} CE OI)."
+                details = f"Bearish PCR ({pcr_oi:.2f}) with net Call additions (+{tot_ce_chg:,} CE OI chg)."
+            elif pcr_oi >= 1.15 and tot_pe_chg > 0:
+                sentiment = "Positive"
+                color_class = "text-green"
+                details = f"Bullish PCR ({pcr_oi:.2f}) with moderate Put support (+{tot_pe_chg:,} PE OI chg)."
+            elif pcr_oi <= 0.85 and tot_ce_chg > 0:
+                sentiment = "Negative"
+                color_class = "text-red"
+                details = f"Bearish PCR ({pcr_oi:.2f}) with Call resistance (+{tot_ce_chg:,} CE OI chg)."
             else:
                 sentiment = "Neutral"
                 color_class = "text-yellow"
-                details = f"Balanced PCR ({pcr_oi:.2f}) with equal Open Interest distribution."
+                details = f"Balanced PCR ({pcr_oi:.2f}) with Open Interest equilibrium."
 
             data_mode = "LIVE" if is_provider_live else "HISTORICAL_SAMPLE"
 
@@ -553,7 +562,7 @@ class OptionsAnalytics:
             except Exception as e:
                 logger.debug(f"Live option feed resolution skipped for {sym}: {e}")
 
-        # 2. Check local cache file across standard workspace locations
+        # 2. Check local cache file across standard workspace locations (strictly for requested symbol)
         search_dirs = [
             Path(__file__).resolve().parent.parent / "data" / "cache",
             WORKSPACE_ROOT / "live-market-terminal" / "data" / "cache",
@@ -565,29 +574,14 @@ class OptionsAnalytics:
             if live_cache.exists():
                 try:
                     with open(live_cache, "r", encoding="utf-8") as fp:
-                        return json.load(fp), "LIVE_CACHE"
+                        data = json.load(fp)
+                        if data and data.get("records", {}).get("data"):
+                            return data, "LIVE_CACHE"
                 except Exception:
                     pass
 
-        # 3. Generic cache
-        for cdir in search_dirs:
-            generic_cache = cdir / "option_chain.json"
-            if generic_cache.exists():
-                try:
-                    with open(generic_cache, "r", encoding="utf-8") as fp:
-                        return json.load(fp), "GENERIC_CACHE"
-                except Exception:
-                    pass
-
-        # 4. Sample file
-        sample_file = WORKSPACE_ROOT / "Daily-Market-Regime-Engine" / "data" / "sample_option_chain.json"
-        if sample_file.exists():
-            try:
-                with open(sample_file, "r", encoding="utf-8") as fp:
-                    return json.load(fp), "SAMPLE_FILE"
-            except Exception:
-                pass
-
+        # If specific chain is unavailable, return None so INSUFFICIENT DATA / UNAVAILABLE is reported
+        # Never mix NIFTY / BANKNIFTY with a generic or fallback file
         return None, "NONE"
 
     @classmethod

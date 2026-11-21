@@ -419,14 +419,15 @@ class OrderFlowAnalyzer:
         elif price_change < 0 and cvd_change > 0:
             divergence = "BULLISH_ACCUMULATION_ABSORPTION"  # Price lower, but buying delta
 
-        # Order flow state classification
+        # Order flow state classification: require actual order-flow evidence (e.g. buyer_pct > 52 and positive CVD / Delta)
+        # 50.0% BUY or CVD <= 0 must never generate a bullish flow classification
         if buyer_pct >= 58.0 and cvd_change > 0:
             state = "STRONG_BULLISH_FLOW"
-        elif buyer_pct > 52.0:
+        elif buyer_pct > 52.0 and cvd_change > 0 and session_cvd > 0:
             state = "MODERATE_BULLISH_FLOW"
         elif seller_pct >= 58.0 and cvd_change < 0:
             state = "STRONG_BEARISH_FLOW"
-        elif seller_pct > 52.0:
+        elif seller_pct > 52.0 and cvd_change < 0 and session_cvd < 0:
             state = "MODERATE_BEARISH_FLOW"
         else:
             state = "NEUTRAL_CHOP_FLOW"

@@ -64,9 +64,13 @@ class NewsAndEventRiskEngine:
         label = sentiment_data.get("sentiment_label", "NEUTRAL")
         risk_rating = event_data.get("risk_rating", "LOW_NORMAL_RISK")
         risk_lvl = "LOW" if "LOW" in risk_rating else ("MODERATE" if "MODERATE" in risk_rating else "HIGH")
+        # If headlines or calendar feeds are unavailable or failed, event risk can be UNAVAILABLE
         haircut = event_data.get("haircut_pct", 0)
         mult = max(0.25, 1.0 - (haircut / 100.0))
         active_evts = event_data.get("active_events", [])
+
+        # Directional bias (Bullish / Bearish / Neutral) separated strictly from event risk rating
+        directional_bias = "Bullish" if label == "BULLISH" else ("Bearish" if label == "BEARISH" else "Neutral")
 
         return {
             "headlines": headlines,
@@ -74,6 +78,7 @@ class NewsAndEventRiskEngine:
             "event_risk": event_data,
             "market_sentiment_score": score,
             "market_sentiment_label": label,
+            "directional_bias": directional_bias,
             "event_risk_level": risk_lvl,
             "position_sizing_multiplier": round(mult, 2),
             "calendar_events": active_evts,

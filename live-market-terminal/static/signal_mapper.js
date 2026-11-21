@@ -118,6 +118,15 @@
         const upper = str.toUpperCase();
         if (SIGNAL_LABEL_MAP[upper]) return SIGNAL_LABEL_MAP[upper];
 
+        if (upper === 'BROADENING_RANGE') return 'Broadening Range';
+        if (upper === 'COMPRESSION_TRIANGLE') return 'Compression Triangle';
+        if (upper === 'VOLATILITY_EXPANSION') return 'Range Expanding (No Breakout)';
+        if (upper === 'BULLISH_EXPANSION_BREAKOUT') return 'Bullish Breakout Confirmed';
+        if (upper === 'BEARISH_EXPANSION_BREAKDOWN') return 'Bearish Breakdown Confirmed';
+        if (upper === 'TRIANGLE_UPPER_BREAKOUT') return 'Ascending Breakout Confirmed';
+        if (upper === 'TRIANGLE_LOWER_BREAKDOWN') return 'Descending Breakdown Confirmed';
+        if (upper === 'RANGE_CONTRACTION') return 'Range Contracting (No Breakout)';
+
         if (upper.includes('AVOID_SHORT') || upper.includes('AVOID SHORT')) {
             return 'STAND ASIDE — DO NOT SHORT';
         }
@@ -305,15 +314,21 @@
     }
 
     /**
-     * Resolves Order Flow indicator (Buyers Dominating / Sellers Dominating / Balanced).
+     * Resolves Order Flow indicator (Buyers Dominating / Sellers Dominating / Balanced / Unavailable).
+     * 50.0% BUY or CVD <= 0 must strictly classify as Balanced / Neutral.
      */
     function resolveOrderFlow(orderFlow) {
-        if (!orderFlow) return { label: 'Balanced', badgeClass: 'text-yellow', buyerPct: 50.0 };
+        if (!orderFlow || orderFlow.status === 'UNAVAILABLE' || orderFlow.is_cvd_available === false) {
+            return { label: 'Unavailable', badgeClass: 'text-muted', buyerPct: 50.0 };
+        }
         const buyerPct = parseFloat(orderFlow.buyer_percentage || 50.0);
+        const sessionCvd = parseInt(orderFlow.session_cvd != null ? orderFlow.session_cvd : (orderFlow.cvd || 0), 10);
         const flowState = String(orderFlow.order_flow_state || '').toUpperCase();
-        if (buyerPct >= 52.0 || flowState.includes('BUYING')) {
+
+        // Moderate or Strong Bullish requires actual evidence: buyerPct > 52 and positive CVD
+        if ((buyerPct >= 52.0 && sessionCvd > 0) || (flowState.includes('STRONG_BULLISH') && sessionCvd > 0)) {
             return { label: 'Buyers Dominating', badgeClass: 'text-green', buyerPct };
-        } else if (buyerPct <= 48.0 || flowState.includes('SELLING')) {
+        } else if ((buyerPct <= 48.0 && sessionCvd < 0) || (flowState.includes('STRONG_BEARISH') && sessionCvd < 0)) {
             return { label: 'Sellers Dominating', badgeClass: 'text-red', buyerPct };
         }
         return { label: 'Balanced', badgeClass: 'text-yellow', buyerPct };

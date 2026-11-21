@@ -193,13 +193,24 @@ class MarketStructureAnalyzer:
                         if current_price < last_sl:
                             event = "BOS_BEARISH_CONTINUATION"
                     elif last_sh > prev_sh and last_sl < prev_sl:
+                        # Genuine Broadening formation: higher high and lower low
                         structure_state = "BROADENING_RANGE"
                         trend_type = "SIDEWAYS"
-                        event = "VOLATILITY_EXPANSION"
+                        if current_price > last_sh:
+                            event = "BULLISH_EXPANSION_BREAKOUT"
+                        elif current_price < last_sl:
+                            event = "BEARISH_EXPANSION_BREAKDOWN"
+                        else:
+                            event = "VOLATILITY_EXPANSION"
                     else:
                         structure_state = "COMPRESSION_TRIANGLE"
                         trend_type = "SIDEWAYS"
-                        event = "RANGE_CONTRACTION"
+                        if current_price > last_sh:
+                            event = "TRIANGLE_UPPER_BREAKOUT"
+                        elif current_price < last_sl:
+                            event = "TRIANGLE_LOWER_BREAKDOWN"
+                        else:
+                            event = "RANGE_CONTRACTION"
                 else:
                     trend_type = "SIDEWAYS"
             else:
