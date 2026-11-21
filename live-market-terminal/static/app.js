@@ -147,7 +147,8 @@ class MarketTerminalClient {
                 chgElem.className = `last-price-change ${chg >= 0 ? 'text-green' : 'text-red'}`;
             }
             if (clockElem && q.timestamp) {
-                clockElem.textContent = q.timestamp;
+                const ts = String(q.timestamp).replace(/^LAST UPDATED:\s*/i, '');
+                clockElem.textContent = `LAST UPDATED: ${ts}`;
             }
         } else {
             const cachedSpot = this.previousQuotes[this.activeSymbol];
@@ -158,10 +159,11 @@ class MarketTerminalClient {
 
         if (clockElem && (!q || !q.timestamp)) {
             if (marketStatus && marketStatus.timestamp) {
-                clockElem.textContent = marketStatus.timestamp;
+                const ts = String(marketStatus.timestamp).replace(/^LAST UPDATED:\s*/i, '');
+                clockElem.textContent = `LAST UPDATED: ${ts}`;
             } else {
                 const now = new Date();
-                clockElem.textContent = now.toLocaleTimeString('en-IN') + ' IST';
+                clockElem.textContent = `LAST UPDATED: ${now.toLocaleTimeString('en-IN')} IST`;
             }
         }
 
@@ -537,27 +539,17 @@ class MarketTerminalClient {
 
         try {
             this.ws = new WebSocket(wsUrl);
+            this.updateWebSocketPill();
         } catch (e) {
             console.error('[WebSocket] Instantiation failed:', e);
-            if (pillWs) {
-                pillWs.textContent = 'WS: FAILED';
-                pillWs.style.color = '#ff1744';
-            }
+            this.updateWebSocketPill();
             return;
         }
 
         this.ws.onopen = () => {
             console.log('[WebSocket] Connection established.');
             this.wsStatus = 'CONNECTED';
-            if (pillWs) {
-                pillWs.textContent = 'WS: CONNECTED';
-                pillWs.style.color = '#00e676';
-            }
-            const footerWs = document.getElementById('footer-ws-status');
-            if (footerWs) {
-                const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
-                footerWs.textContent = symStat.is_market_closed ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
-            }
+            this.updateWebSocketPill();
         };
 
         this.ws.onmessage = (event) => {
@@ -573,12 +565,7 @@ class MarketTerminalClient {
         this.ws.onclose = () => {
             console.warn('[WebSocket] Closed. Reconnecting in 3s...');
             this.wsStatus = 'RECONNECTING';
-            if (pillWs) {
-                pillWs.textContent = 'WS: RECONNECTING';
-                pillWs.style.color = '#ffd600';
-            }
-            const footerWs = document.getElementById('footer-ws-status');
-            if (footerWs) footerWs.textContent = 'Socket Disconnected (Retrying...)';
+            this.updateWebSocketPill();
             setTimeout(() => this.connectWebSocket(), 3000);
         };
 
@@ -643,6 +630,7 @@ class MarketTerminalClient {
             this.systemStatus = packet.system_status;
         }
 
+        this.updateWebSocketPill();
         // 3. Update Session Status & Header Cards
         const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
         const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
@@ -1943,21 +1931,56 @@ class MarketTerminalClient {
         }
     }
 
-    heartbeatCheck() {
-        const now = Date.now();
-        const footerWs = document.getElementById('footer-ws-status');
+    updateWebSocketPill() {
         const pillWs = document.getElementById('pill-ws');
+        const footerWs = document.getElementById('footer-ws-status');
+        if (!pillWs && !footerWs) return;
+
         const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
-        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
+        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            if (isClosed) {
+                if (pillWs) {
+                    pillWs.textContent = 'WS: CONNECTED · IDLE';
+                    pillWs.style.color = '#8b949e';
+                }
+                if (footerWs) {
+                    footerWs.textContent = 'Socket Connected (Idle / Market Closed)';
+                }
+            } else {
+                if (pillWs) {
+                    pillWs.textContent = 'WS: CONNECTED · LIVE';
+                    pillWs.style.color = '#00e676';
+                }
+                if (footerWs) {
+                    footerWs.textContent = 'Socket Connected (Live Stream)';
+                }
+            }
+        } else if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
             if (pillWs) {
-                pillWs.textContent = 'WS: CONNECTED';
-                pillWs.style.color = '#00e676';
+                pillWs.textContent = 'WS: CONNECTING';
+                pillWs.style.color = '#ffd600';
             }
             if (footerWs) {
-                footerWs.textContent = (isClosed && true) ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
+                footerWs.textContent = 'Connecting...';
             }
+        } else {
+            // CLOSED or CLOSING or not initialized
+            if (pillWs) {
+                pillWs.textContent = 'WS: DISCONNECTED';
+                pillWs.style.color = '#ff1744';
+            }
+            if (footerWs) {
+                footerWs.textContent = 'Socket Disconnected (HTTP Fallback Active)';
+            }
+        }
+    }
+    heartbeatCheck() {
+        const now = Date.now();
+        this.updateWebSocketPill();
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             // Send heartbeat PING if no incoming message for > 10s
             if (now - (this.lastMessageTime || 0) > 10000) {
                 try {
@@ -1965,25 +1988,20 @@ class MarketTerminalClient {
                 } catch (e) {}
             }
         } else {
-            if (pillWs) {
-                pillWs.textContent = this.ws && this.ws.readyState === WebSocket.CONNECTING ? 'WS: CONNECTING' : 'WS: DISCONNECTED';
-                pillWs.style.color = '#ffd600';
-            }
-            if (footerWs) {
-                footerWs.textContent = 'Socket Disconnected (HTTP Fallback Active)';
-            }
-
             // HTTP Fallback Polling
             fetch('/api/overview')
                 .then(r => r.json())
                 .then(data => {
                     if (data.market_data_status) {
                         this.marketDataStatus = data.market_data_status;
+                        this.updateWebSocketPill();
                     }
                     if (data.quotes) this.updateTickers(data.quotes);
                     if (data.market_status) {
                         const m = data.market_status;
                         const pElem = document.getElementById('pill-session');
+                        const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+                        const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
                         if (pElem) {
                             if (false) {
                                 pElem.textContent = '24/7 LIVE TRADING';
