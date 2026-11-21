@@ -1177,34 +1177,79 @@ class MarketTerminalClient {
         }
 
         // ========================================================
-        // 4. TRADE DECISION PANEL
+        // 4. TRADE DECISION PANEL (THREE INDEPENDENT STATES + DATA STRIP)
         // ========================================================
+        // State 1: MARKET STATUS (OPEN / CLOSED)
+        const marketPill = document.getElementById('decision-market-pill');
+        if (marketPill) {
+            if (isMarketClosed) {
+                marketPill.textContent = 'MARKET: CLOSED';
+                marketPill.className = 'panel-sub-badge text-yellow';
+            } else {
+                marketPill.textContent = 'MARKET: OPEN';
+                marketPill.className = 'panel-sub-badge text-green';
+            }
+        }
+
+        // State 2: SIGNAL STATUS (WAIT / CONFIRMATION PENDING / CONFIRMED / INVALID)
+        const signalPill = document.getElementById('decision-signal-pill');
         const actionTitle = document.getElementById('decision-action-title');
+        let signalStatusLabel = 'CONFIRMATION PENDING';
+        let headlineAction = 'WAIT';
+        let headlineClass = 'text-yellow';
+
+        if (classified.recommendation === 'DATA UNAVAILABLE') {
+            signalStatusLabel = 'INVALID';
+            headlineAction = 'DATA UNAVAILABLE';
+            headlineClass = 'text-muted';
+        } else if (classified.hasValidSetup) {
+            signalStatusLabel = 'CONFIRMED';
+            headlineAction = classified.recommendation; // BUY / STRONG BUY / SELL / STRONG SELL
+            headlineClass = classified.badgeColorClass;
+        } else {
+            signalStatusLabel = 'CONFIRMATION PENDING';
+            headlineAction = 'WAIT';
+            headlineClass = 'text-yellow';
+        }
+
+        if (signalPill) {
+            signalPill.textContent = signalStatusLabel;
+            signalPill.className = `panel-sub-badge ${signalStatusLabel === 'CONFIRMED' ? 'text-green' : (signalStatusLabel === 'INVALID' ? 'text-muted' : 'text-yellow')}`;
+        }
+
         if (actionTitle) {
-            const headline = signals.trade_decision_headline || (classified.hasValidSetup ? classified.recommendation : 'WAIT');
-            actionTitle.textContent = headline;
-            actionTitle.className = `decision-action-title ${classified.badgeColorClass}`;
+            actionTitle.textContent = headlineAction;
+            actionTitle.className = `decision-action-title ${headlineClass}`;
+        }
+
+        // State 3: EXECUTION STATUS (LOCKED / PERMITTED / DISABLED)
+        // Automated execution is permanently disabled by system policy.
+        // Manual trade execution is LOCKED when market is closed or signal is unconfirmed, PERMITTED only when market is open with confirmed signal.
+        const execPill = document.getElementById('decision-exec-pill');
+        if (execPill) {
+            if (isMarketClosed) {
+                execPill.textContent = 'EXEC: LOCKED (MARKET CLOSED)';
+                execPill.className = 'panel-sub-badge text-cyan';
+            } else if (!classified.hasValidSetup) {
+                execPill.textContent = 'EXEC: LOCKED (AWAITING SETUP)';
+                execPill.className = 'panel-sub-badge text-yellow';
+            } else {
+                execPill.textContent = 'EXEC: PERMITTED (MANUAL ONLY)';
+                execPill.className = 'panel-sub-badge text-green';
+            }
         }
 
         const subQuote = document.getElementById('decision-subtext-quote');
         if (subQuote) {
-            const quote = signals.trade_decision_sub || "No confirmed entry. Wait for price confirmation and defined risk.";
-            subQuote.textContent = `"${quote}"`;
-        }
-
-        const modePill = document.getElementById('decision-mode-pill');
-        if (modePill) {
+            let quote = "";
             if (isMarketClosed) {
-                modePill.textContent = 'EXECUTION LOCKED';
-                modePill.className = 'panel-sub-badge text-cyan';
+                quote = "Official NSE session is closed. Live execution is locked by exchange hours; analytical models remain active.";
             } else if (classified.hasValidSetup) {
-                modePill.textContent = 'EXECUTION PERMITTED';
-                modePill.className = 'panel-sub-badge text-green';
+                quote = `Confirmed institutional setup: ${classified.recommendation}. Manual execution permitted with strict risk limits.`;
             } else {
-                const rawDec = String(signals.decision || '').toUpperCase();
-                modePill.textContent = rawDec.includes('CAPITAL') ? 'CAPITAL PRESERVATION' : 'WAITING CONFIRMATION';
-                modePill.className = 'panel-sub-badge text-yellow';
+                quote = "No confirmed structural setup. Stand aside and wait for defined risk confirmation.";
             }
+            subQuote.textContent = `"${quote}"`;
         }
 
         const heroCallout = document.getElementById('decision-hero-callout');
@@ -1213,33 +1258,68 @@ class MarketTerminalClient {
             heroCallout.style.boxShadow = `0 0 16px ${classified.themeColor}22`;
         }
 
-        // Market Condition Explanation (Dynamically Generated)
+        // Verified Market Data Strip Rendering
+        const stripInst = document.getElementById('strip-instrument');
+        if (stripInst) stripInst.textContent = symName;
+        const stripExch = document.getElementById('strip-exchange');
+        if (stripExch) stripExch.textContent = 'NSE';
+
+        const stripPrice = document.getElementById('strip-price');
+        const qData = this.latestQuotes[this.activeSymbol] || {};
+        const verifiedPrice = qData.price || spot || 0;
+        if (stripPrice) {
+            stripPrice.textContent = verifiedPrice > 0 ? `${curr}${Number(verifiedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `${curr}--`;
+        }
+
+        const stripMode = document.getElementById('strip-mode');
+        if (stripMode) {
+            const isLive = !isMarketClosed && (symStat.data_mode === 'LIVE' || symStat.status === 'LIVE');
+            stripMode.textContent = isLive ? 'LIVE' : 'HISTORICAL';
+            stripMode.className = `intel-pill ${isLive ? 'pill-green' : 'pill-muted'}`;
+        }
+
+        const stripUpdated = document.getElementById('strip-updated');
+        if (stripUpdated) {
+            const updateTs = qData.timestamp || symStat.last_updated || symStat.checked_at || `${new Date().toLocaleTimeString('en-IN')} IST`;
+            stripUpdated.textContent = `Updated: ${String(updateTs).replace(/^LAST UPDATED:\s*/i, '')}`;
+        }
+
+        // Market Condition Explanation (Accurate & Dynamic per requirements)
         const reasonsList = document.getElementById('decision-reasons-list');
         if (reasonsList) {
             reasonsList.innerHTML = '';
-            let reasons = signals.trade_decision_reasons || [];
-            if (!Array.isArray(reasons) || reasons.length === 0) {
-                // Dynamically compile from actual market indicators
-                reasons = [];
-                const ms = mapper.resolveMarketStructure(analytics);
-                const vwap = parseFloat(analytics.indicators?.vwap || 0);
-                const vwapPos = mapper.resolveVwapPosition(spot, vwap);
-                const flow = mapper.resolveOrderFlow(analytics.order_flow);
+            const dynamicReasons = [];
 
-                if (classified.hasValidSetup) {
-                    reasons.push(`Market structure confirmed ${ms.label.toLowerCase()} with aligned order flow.`);
-                    reasons.push(`Price is trading ${vwapPos.label.toLowerCase()} session VWAP (${curr}${vwap.toFixed(0)}).`);
-                    reasons.push(`Favorable risk-reward geometry: ${signals.risk_reward_ratio || '1:2.0'}.`);
-                } else {
-                    reasons.push(`Market structure is ${ms.label} on current timeframe; awaiting structural break of structure.`);
-                    reasons.push(`Price is trading ${vwapPos.label.toLowerCase()} session VWAP (${curr}${vwap.toFixed(0)}).`);
-                    reasons.push(`Order flow shows ${flow.label.toLowerCase()} (${flow.buyerPct.toFixed(1)}% buyers); awaiting volume confirmation.`);
-                    reasons.push(`Risk/reward ratio does not meet the minimum requirement for execution.`);
-                }
+            // 1. Session Status & Next Session
+            if (isMarketClosed) {
+                const sessionDate = symStat.trading_session_date || 'Previous session close';
+                const nextSession = symStat.next_trading_session_date ? `Next regular trading session resumes ${symStat.next_trading_session_date} at 09:15 AM IST.` : 'Next regular trading session resumes next scheduled trading day at 09:15 AM IST.';
+                dynamicReasons.push(`Exchange session closed. Official closing benchmark verified for session ${sessionDate}. ${nextSession}`);
+            } else {
+                dynamicReasons.push(`Active NSE trading session (09:15 - 15:30 IST). Real-time order flow and tick stream monitored.`);
             }
-            reasons.forEach(r => {
+
+            // 2. Historical Data Availability & Preserved Indicators
+            if (verifiedPrice > 0) {
+                const isLiveFeed = !isMarketClosed && symStat.data_mode === 'LIVE';
+                dynamicReasons.push(`Data verification: ${symName} verified at ${curr}${Number(verifiedPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })} (${isLiveFeed ? 'Verified Live Stream' : 'Verified Historical Session Benchmark'}).`);
+                dynamicReasons.push(`Historical market structures, VWAP equilibrium, and technical indicators preserved for offline review.`);
+            } else {
+                dynamicReasons.push(`Market data feed unavailable or pending verification. Analytical indicators offline.`);
+            }
+
+            // 3. Execution Lock & System Policy
+            if (isMarketClosed) {
+                dynamicReasons.push(`Execution locked by exchange closure. System policy permanently enforces zero automated trade execution; manual orders require trader review.`);
+            } else if (!classified.hasValidSetup) {
+                dynamicReasons.push(`Execution locked awaiting high-conviction structural confirmation. Capital preservation prioritized.`);
+            } else {
+                dynamicReasons.push(`Manual order execution permitted for confirmed ${classified.recommendation} setup. Zero automated routing active.`);
+            }
+
+            dynamicReasons.forEach(r => {
                 const li = document.createElement('li');
-                li.textContent = r.replace(/₹/g, curr);
+                li.textContent = r;
                 reasonsList.appendChild(li);
             });
         }

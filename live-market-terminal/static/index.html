@@ -313,19 +313,33 @@
                     <div class="card-title-group">
                         <span class="card-title">TRADE DECISION</span>
                     </div>
-                    <span class="panel-sub-badge text-yellow" id="decision-mode-pill">CAPITAL PRESERVATION</span>
+                    <div class="decision-status-pills-group">
+                        <span class="panel-sub-badge text-yellow" id="decision-market-pill">MARKET: CLOSED</span>
+                        <span class="panel-sub-badge text-cyan" id="decision-exec-pill">EXEC: LOCKED</span>
+                    </div>
                 </div>
 
                 <div class="card-content-body">
                     <!-- Prominent Highlighted Decision Box -->
                     <div class="decision-hero-callout" id="decision-hero-callout">
-                        <div class="decision-headline-badge-row">
-                            <span class="decision-prefix-tag">SYSTEM DECISION</span>
-                            <h2 class="decision-action-title text-yellow" id="decision-action-title">WAIT</h2>
+                        <div class="decision-hero-top-row">
+                            <div class="decision-headline-badge-row">
+                                <span class="decision-prefix-tag">SIGNAL DECISION</span>
+                                <h2 class="decision-action-title text-yellow" id="decision-action-title">WAIT</h2>
+                            </div>
+                            <span class="panel-sub-badge" id="decision-signal-pill">CONFIRMATION PENDING</span>
                         </div>
                         <p class="decision-subtext-quote" id="decision-subtext-quote">
                             "No confirmed entry. Wait for price confirmation and defined risk."
                         </p>
+                    </div>
+
+                    <!-- Verified Market Data Strip -->
+                    <div class="decision-data-strip" id="decision-data-strip">
+                        <span class="data-strip-item" id="strip-instrument-exchange"><b id="strip-instrument">NIFTY 50</b> • <span id="strip-exchange">NSE</span></span>
+                        <span class="data-strip-item" id="strip-price-container">Last Traded: <b class="text-white" id="strip-price">₹--,--</b></span>
+                        <span class="data-strip-item" id="strip-mode-container"><span class="intel-pill pill-muted" id="strip-mode">HISTORICAL</span></span>
+                        <span class="data-strip-item text-muted" id="strip-updated">Updated: --:--:-- IST</span>
                     </div>
 
                     <!-- Market Condition Explanation (Dynamically Generated) -->
@@ -338,7 +352,7 @@
 
                     <!-- Institutional Risk Policy -->
                     <div class="decision-risk-disclaimer">
-                        <span>🛡️ <b>MANDATE:</b> Capital preservation prioritized. Zero automated trade execution. All signals require trader discretion.</span>
+                        <span>🛡️ <b>MANDATE:</b> System policy permanently enforces zero automated trade execution. All analytical signals are decision support tools requiring manual trader discretion.</span>
                     </div>
                 </div>
             </div>

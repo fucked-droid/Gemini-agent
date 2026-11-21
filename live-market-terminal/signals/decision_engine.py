@@ -132,11 +132,11 @@ class TradingDecisionEngine:
                 "signal_recommendation": "EXECUTION LOCKED (MARKET CLOSED)",
                 "clean_recommendation": "EXECUTION LOCKED",
                 "trade_decision_headline": "EXECUTION LOCKED",
-                "trade_decision_sub": f"Official NSE market session is closed. Real-time order execution is locked until next trading session.",
+                "trade_decision_sub": "Official NSE market session is closed. Real-time order execution is locked by exchange hours.",
                 "trade_decision_reasons": [
                     f"Exchange session closed. Last verified closing price: {curr_symbol}{spot_price:,.2f}.",
                     "Historical structures and indicator calculations preserved for review.",
-                    "Live order routing and trade execution are disabled outside market hours.",
+                    "System policy permanently enforces zero automated trade execution; all trading requires manual discretion.",
                 ],
                 "framework_breakdown": {
                     "higher_timeframe_bias": {"trend": "HISTORICAL", "description": "Session closed - Historical replay"},

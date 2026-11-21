@@ -180,6 +180,21 @@ class MarketStatusManager:
 
         return cur_date
 
+    def get_next_trading_session_date(self, ref_date: Optional[datetime.date] = None) -> datetime.date:
+        """
+        Calculates the next upcoming valid NSE trading session date from the official exchange calendar.
+        Steps forward from tomorrow (or today if before 09:15) until a non-holiday weekday is found.
+        """
+        now = get_ist_now()
+        cur_date = ref_date or now.date()
+        cur_time = (now.hour, now.minute)
+        market_open = SESSION_TIMINGS.get("market_open", (9, 15))
+
+        step = cur_date if (not self.is_holiday(cur_date) and cur_time < market_open) else (cur_date + datetime.timedelta(days=1))
+        while self.is_holiday(step):
+            step += datetime.timedelta(days=1)
+        return step
+
     def get_session_details(self, symbol: str = "NIFTY") -> Dict[str, Any]:
         """Provides fine-grained session phase, market open status, and countdown message."""
         sym = symbol.upper()
@@ -430,6 +445,7 @@ class MarketStatusManager:
         sess = self.get_session_details(sym)
         data_source_str = (self.provider_name if (session_active and self.provider_connected) 
                            else f"Historical Parquet Master ({session_date})")
+        next_session_date = self.get_next_trading_session_date().strftime("%Y-%m-%d") if sym != "BTC" else now_dt.strftime("%Y-%m-%d")
 
         return {
             "symbol": sym,
@@ -450,6 +466,7 @@ class MarketStatusManager:
             "session_status_text": sess["status_text"],
             "session_message": sess["message"],
             "trading_session_date": session_date,
+            "next_trading_session_date": next_session_date,
             "last_tick_timestamp": last_tick,
             "last_tick_delta_seconds": tick_delta,
             "is_stale": (freshness == FreshnessStatus.STALE),
