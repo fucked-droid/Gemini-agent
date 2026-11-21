@@ -67,22 +67,13 @@ class TestAuditRepairs(unittest.TestCase):
         self.assertIn("market_intelligence", nifty_analytics)
         self.assertNotEqual(nifty_analytics.get("market_breadth", {}).get("status"), "NOT_APPLICABLE")
 
-        # Process BTC (Crypto Dev Test)
-        web_server.process_symbol_pipeline("BTC")
-        btc_analytics = self.cache.analytics.get("BTC", {})
-        self.assertIn("market_intelligence", btc_analytics)
-        # BTC must NEVER pollute with Indian equity breadth
-        self.assertEqual(btc_analytics.get("market_breadth", {}).get("status"), "NOT_APPLICABLE")
-        # BTC options must be strictly UNAVAILABLE
-        self.assertEqual(btc_analytics.get("options_intelligence", {}).get("status"), "NO_CRYPTO_OPTIONS")
-
         # Process BANKNIFTY
         web_server.process_symbol_pipeline("BANKNIFTY")
         bn_analytics = self.cache.analytics.get("BANKNIFTY", {})
         self.assertIn("market_intelligence", bn_analytics)
 
         # Ensure cache structures are completely separate instances
-        self.assertIsNot(nifty_analytics, btc_analytics)
+        self.assertIsNot(nifty_analytics, bn_analytics)
         self.assertIsNot(nifty_analytics, bn_analytics)
 
     # ==========================================================
@@ -140,21 +131,23 @@ class TestAuditRepairs(unittest.TestCase):
     # ==========================================================
     def test_stale_data_detection(self):
         """Verifies feed flags STALE when ticks are stalled (> 15s) during active sessions."""
-        sym = "BTC"  # 24/7 active session
-        # Record tick 25 seconds in the past
-        past_time = time.time() - 25.0
-        self.mgr.record_tick(sym, past_time)
+        sym = "NIFTY"
+        self.mgr.set_provider_status(True)
+        # Mock session active for NIFTY
+        with unittest.mock.patch.object(self.mgr, 'is_session_active', return_value=True):
+            past_time = time.time() - 25.0
+            self.mgr.record_tick(sym, past_time)
 
-        status_info = self.mgr.get_status(sym)
-        self.assertEqual(status_info["status"], MarketDataStatus.STALE.value)
-        self.assertTrue(status_info["is_stale"])
-        self.assertGreater(status_info["last_tick_delta_seconds"], 15.0)
+            status_info = self.mgr.get_status(sym)
+            self.assertEqual(status_info["status"], MarketDataStatus.STALE.value)
+            self.assertTrue(status_info["is_stale"])
+            self.assertGreater(status_info["last_tick_delta_seconds"], 15.0)
 
-        # Send fresh tick
-        self.mgr.record_tick(sym, time.time())
-        status_info_fresh = self.mgr.get_status(sym)
-        self.assertEqual(status_info_fresh["status"], MarketDataStatus.LIVE.value)
-        self.assertFalse(status_info_fresh["is_stale"])
+            # Send fresh tick
+            self.mgr.record_tick(sym, time.time())
+            status_info_fresh = self.mgr.get_status(sym)
+            self.assertEqual(status_info_fresh["status"], MarketDataStatus.LIVE.value)
+            self.assertFalse(status_info_fresh["is_stale"])
 
     # ==========================================================
     # 5. MISSING OPTIONS DATA & GRACEFUL DEGRADATION

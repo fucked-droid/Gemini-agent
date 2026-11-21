@@ -150,28 +150,12 @@ def process_symbol_pipeline(sym: str, quote: Optional[Dict[str, Any]] = None) ->
     structure = MarketStructureAnalyzer.analyze_structure(candles_5m)
     smc_analysis = SMCAnalyzer.analyze_smc(candles_5m)
 
-    # Strict Instrument Data Isolation: Do not allow BTC data or crypto logic into NIFTY/BANKNIFTY calculations
-    if sym == "BTC":
-        breadth = {
-            "status": "NOT_APPLICABLE",
-            "advances": 0,
-            "declines": 0,
-            "adr": 1.0,
-            "breadth_score": 0.0,
-            "interpretation": "Global 24/7 Crypto Flow (NSE Breadth N/A)",
-        }
-        inst_flow = {
-            "status": "NOT_APPLICABLE",
-            "net_flow_cr": 0.0,
-            "interpretation": "Digital Assets 24/7 Spot / Perpetual Market",
-        }
-    else:
-        breadth = MarketBreadthAnalyzer.compute_breadth_from_constituents(TOP_NIFTY_CONSTITUENTS)
-        inst_flow = MarketBreadthAnalyzer.get_institutional_flow()
+    breadth = MarketBreadthAnalyzer.compute_breadth_from_constituents(TOP_NIFTY_CONSTITUENTS)
+    inst_flow = MarketBreadthAnalyzer.get_institutional_flow()
 
     mtf_data = MultiTimeframeEngine.evaluate_multi_timeframe_suite(tf_suite)
 
-    spot = quote.get("price", 25144.30 if sym != "BTC" else 65850.0)
+    spot = quote.get("price", 25144.30)
     atr = ind_sc.get("atr", spot * 0.005)
     forecasts = ForecastOrchestrator.run_prediction_pipeline(df_enriched, spot, atr)
 
@@ -340,8 +324,8 @@ async def continuous_market_monitor_task():
             market_status = client.get_market_status()
             cache.update_market_status(market_status)
 
-            # 3. Process NIFTY, BANKNIFTY, and Bitcoin (24/7 Live Data)
-            for sym in ["NIFTY", "BANKNIFTY", "BTC"]:
+            # 3. Process NIFTY and BANKNIFTY
+            for sym in ["NIFTY", "BANKNIFTY"]:
                 process_symbol_pipeline(sym, quotes.get(sym))
 
             status_mgr = get_market_status_manager()
@@ -349,7 +333,6 @@ async def continuous_market_monitor_task():
                 "NIFTY": status_mgr.get_status("NIFTY"),
                 "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
                 "INDIAVIX": status_mgr.get_status("INDIAVIX"),
-                "BTC": status_mgr.get_status("BTC"),
             }
 
             any_live = any(s.get("status") == "LIVE" for s in market_data_status.values())
@@ -425,7 +408,6 @@ async def startup_event():
     2. Fetch 5-day FIVE_MINUTE startup candles for NIFTY (99926000), BANKNIFTY (99926009), INDIA VIX (99926017).
     3. Dynamically resolve nearest monthly NIFTY NFO FUTIDX contract from OpenAPIScripMaster.json.
     4. Start SmartWebSocketV2 (mode 3) for live ticks & futures metrics (scaled / 100.0).
-    5. Connect BTC (DEV TEST) to Binance's free public WebSocket (wss://stream.binance.com:9443/ws/btcusdt@aggTrade).
     6. Initial batched options poll (PCR & OI walls) for NIFTY & BANKNIFTY.
     7. Pre-calculate analytics, indicators (EMA 10/20, ADX), and forecasts so charts populate immediately.
     8. Start daily 08:50 AM IST session refresh scheduler, continuous monitor, and 30s options loop.
@@ -435,14 +417,7 @@ async def startup_event():
 
     logger.info("Initializing Live Indian Market Terminal...")
 
-    # 1. Connect BTC (DEV TEST) to Binance's free public WebSocket (Requirement 4)
-    try:
-        from data.crypto_feed import CryptoFeed
-        CryptoFeed.start_binance_websocket()
-    except Exception as be:
-        logger.warning(f"Error starting Binance BTC WebSocket: {be}")
-
-    # 2. Authenticate Angel One SmartAPI and fetch startup candles (Requirement 1 & 2)
+    # 1. Authenticate Angel One SmartAPI and fetch startup candles (Requirement 1 & 2)
     try:
         from data.angel_provider import get_angel_provider
         angel_prov = get_angel_provider()
@@ -476,9 +451,9 @@ async def startup_event():
     except Exception as ae:
         logger.error(f"Error initializing Angel One SmartAPI on startup: {ae}")
 
-    # 3. Pre-populate quotes and execute analytics pipeline for NIFTY, BANKNIFTY, BTC
+    # 2. Pre-populate quotes and execute analytics pipeline for NIFTY, BANKNIFTY
     try:
-        for sym in ["NIFTY", "BANKNIFTY", "BTC"]:
+        for sym in ["NIFTY", "BANKNIFTY"]:
             q = client.get_quote(sym)
             cache.update_quote(sym, q)
             process_symbol_pipeline(sym, q)
@@ -521,7 +496,6 @@ def get_version():
         "market_data_status": {
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
-            "BTC": status_mgr.get_status("BTC"),
         },
     }
 
@@ -537,7 +511,6 @@ def get_overview():
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
             "INDIAVIX": status_mgr.get_status("INDIAVIX"),
-            "BTC": status_mgr.get_status("BTC"),
         },
         "system_status": snap.get("system_status", {}),
     }
@@ -782,7 +755,6 @@ def get_health():
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
             "INDIAVIX": status_mgr.get_status("INDIAVIX"),
-            "BTC": status_mgr.get_status("BTC"),
         },
     }
     return status_mgr.create_response_envelope(
@@ -889,7 +861,6 @@ async def websocket_live_stream(websocket: WebSocket):
             "NIFTY": status_mgr.get_status("NIFTY"),
             "BANKNIFTY": status_mgr.get_status("BANKNIFTY"),
             "INDIAVIX": status_mgr.get_status("INDIAVIX"),
-            "BTC": status_mgr.get_status("BTC"),
         }
         init_packet = {
             "type": "INITIAL_STATE",

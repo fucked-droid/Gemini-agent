@@ -113,7 +113,6 @@ class MarketStatusManager:
             "NIFTY": 0.0,
             "BANKNIFTY": 0.0,
             "INDIAVIX": 0.0,
-            "BTC": 0.0,
         }
         self.provider_connected: bool = False
         self.provider_name: str = "DhanHQ Official v2 API"
@@ -124,7 +123,6 @@ class MarketStatusManager:
             "NIFTY": False,
             "BANKNIFTY": False,
             "INDIAVIX": False,
-            "BTC": False,
         }
         self.stale_threshold_seconds: float = 15.0
 

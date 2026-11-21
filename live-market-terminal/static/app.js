@@ -57,8 +57,6 @@ class MarketTerminalClient {
 
     initDOM() {
         // Instrument switchers
-        const btnBtc = document.getElementById('btn-btc');
-        if (btnBtc) btnBtc.addEventListener('click', () => this.switchSymbol('BTC'));
         const btnNifty = document.getElementById('btn-nifty');
         if (btnNifty) btnNifty.addEventListener('click', () => this.switchSymbol('NIFTY'));
         const btnBankNifty = document.getElementById('btn-banknifty');
@@ -99,15 +97,12 @@ class MarketTerminalClient {
                 exBadge.textContent = 'NSE • EQUITY DERIVATIVES';
             } else if (this.activeSymbol === 'BANKNIFTY') {
                 exBadge.textContent = 'NSE • BANKING DERIVATIVES';
-            } else if (this.activeSymbol === 'BTC') {
                 exBadge.textContent = 'GLOBAL • 24/7 SPOT (DEV)';
             } else {
                 exBadge.textContent = 'NSE • EQUITY INDEX';
             }
         }
 
-        const btnBtc = document.getElementById('btn-btc');
-        if (btnBtc) btnBtc.classList.toggle('active', this.activeSymbol === 'BTC');
         const btnNifty = document.getElementById('btn-nifty');
         if (btnNifty) btnNifty.classList.toggle('active', this.activeSymbol === 'NIFTY');
         const btnBankNifty = document.getElementById('btn-banknifty');
@@ -127,7 +122,6 @@ class MarketTerminalClient {
         if (symNameElem) {
             let symName = 'NIFTY 50';
             if (this.activeSymbol === 'BANKNIFTY') symName = 'BANKNIFTY';
-            else if (this.activeSymbol === 'BTC') symName = 'BTC / USD';
             symNameElem.textContent = symName;
         }
 
@@ -136,7 +130,7 @@ class MarketTerminalClient {
         const clockElem = document.getElementById('header-market-clock');
         const modeElem = document.getElementById('header-data-mode');
 
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         quotes = quotes || this.latestQuotes || {};
         const q = quotes[this.activeSymbol];
 
@@ -174,9 +168,9 @@ class MarketTerminalClient {
         if (modeElem) {
             const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
             const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
-            const stat = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'HISTORICAL');
+            const stat = symStat.status || (false ? 'LIVE' : 'HISTORICAL');
             
-            if (isClosed && this.activeSymbol !== 'BTC') {
+            if (isClosed && true) {
                 modeElem.className = 'feed-mode-tag text-cyan';
                 modeElem.textContent = 'MARKET CLOSED';
             } else if (stat === 'LIVE') {
@@ -202,20 +196,20 @@ class MarketTerminalClient {
         const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
         const provElem = document.getElementById('footer-provider-name');
         if (provElem) {
-            provElem.textContent = symStat.provider_name || (this.activeSymbol === 'BTC' ? 'Kraken Public Feed' : 'DhanHQ Official v2 API');
+            provElem.textContent = symStat.provider_name || 'DhanHQ Official v2 API';
         }
         const feedModeElem = document.getElementById('footer-feed-mode');
         if (feedModeElem) {
-            if (isClosed && this.activeSymbol !== 'BTC') {
+            if (isClosed && true) {
                 feedModeElem.textContent = 'OFFLINE / HISTORICAL (MARKET CLOSED)';
             } else {
-                feedModeElem.textContent = symStat.status || (this.activeSymbol === 'BTC' ? 'LIVE' : 'HISTORICAL BENCHMARK');
+                feedModeElem.textContent = symStat.status || (false ? 'LIVE' : 'HISTORICAL BENCHMARK');
             }
         }
         const streamHealthElem = document.getElementById('footer-stream-health');
         if (streamHealthElem) {
             const s = symStat.status;
-            if (isClosed && this.activeSymbol !== 'BTC') {
+            if (isClosed && true) {
                 streamHealthElem.textContent = 'Official Close Replay';
                 streamHealthElem.className = 'text-cyan';
             } else if (s === 'LIVE') {
@@ -252,9 +246,6 @@ class MarketTerminalClient {
         } else if (this.activeSymbol === 'BANKNIFTY') {
             symDisplay = 'BANKNIFTY';
             curr = '₹';
-        } else if (this.activeSymbol === 'BTC') {
-            symDisplay = 'BTC/USD';
-            curr = '$';
         }
 
         symElem.textContent = symDisplay;
@@ -269,7 +260,7 @@ class MarketTerminalClient {
     }
 
     resetDisplayForSymbol(symbol) {
-        const curr = symbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
 
         // 1. Reset headline & conviction
         const recHeadline = document.getElementById('rec-headline');
@@ -346,7 +337,7 @@ class MarketTerminalClient {
         const optPill = document.getElementById('intel-options-pill');
         if (optPill) { optPill.textContent = 'UNAVAILABLE'; optPill.className = 'intel-pill pill-muted'; }
         const optSub = document.getElementById('intel-options-sub');
-        if (optSub) optSub.textContent = symbol === 'BTC' ? 'Options feed unavailable for Bitcoin dev mode' : 'Put-Call Ratio & OI Distribution';
+        if (optSub) optSub.textContent = false ? 'Options feed unavailable for Bitcoin dev mode' : 'Put-Call Ratio & OI Distribution';
 
         // 5. Reset Price and CVD Charts
         if (this.priceChart) {
@@ -365,7 +356,7 @@ class MarketTerminalClient {
     }
 
     clearOptionsTab(curr) {
-        curr = curr || (this.activeSymbol === 'BTC' ? '$' : '₹');
+        curr = curr || '₹';
         const pcrOiElem = document.getElementById('opt-pcr-oi');
         if (pcrOiElem) { pcrOiElem.textContent = '--'; pcrOiElem.className = 'opt-val text-muted'; }
         const pcrSentElem = document.getElementById('opt-pcr-sentiment');
@@ -407,7 +398,6 @@ class MarketTerminalClient {
 
         let label = 'NIFTY 50';
         if (symbol === 'BANKNIFTY') label = 'BANKNIFTY';
-        else if (symbol === 'BTC') label = 'Bitcoin (BTC/USD Dev Test)';
         const chartSymLabel = document.getElementById('chart-symbol-label');
         if (chartSymLabel) chartSymLabel.textContent = label;
 
@@ -615,7 +605,7 @@ class MarketTerminalClient {
             const freshPill = document.getElementById('pill-freshness');
             
             if (freshPill) {
-                if (isClosed && this.activeSymbol !== 'BTC') {
+                if (isClosed && true) {
                     freshPill.textContent = 'Session Closed';
                     freshPill.style.color = '#8b949e';
                 } else if (symStat.status === 'LIVE') {
@@ -658,7 +648,7 @@ class MarketTerminalClient {
         const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED');
         const pElem = document.getElementById('pill-session');
         if (pElem) {
-            if (this.activeSymbol === 'BTC') {
+            if (false) {
                 pElem.textContent = '24/7 LIVE TRADING';
                 pElem.style.color = '#00e676';
             } else if (symStat.session_status_text) {
@@ -695,7 +685,7 @@ class MarketTerminalClient {
 
         const freshPill = document.getElementById('pill-freshness');
         if (freshPill) {
-            if (this.activeSymbol === 'BTC') {
+            if (false) {
                 freshPill.textContent = 'Live (< 1s)';
                 freshPill.style.color = '#00e676';
             } else if (isClosed) {
@@ -742,7 +732,7 @@ class MarketTerminalClient {
     }
 
     updateTickers(quotes) {
-        const currActive = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const currActive = '₹';
         for (const [sym, q] of Object.entries(quotes)) {
             const alias = (sym.toUpperCase() === 'INDIAVIX') ? 'vix' : sym.toLowerCase();
             const valElem = document.getElementById(`val-${alias}`) || document.getElementById(`val-${sym.toLowerCase()}`);
@@ -753,7 +743,7 @@ class MarketTerminalClient {
             const prev = this.previousQuotes[sym] || p;
             const chg = parseFloat(q.change || 0);
             const chgPct = parseFloat(q.change_pct || 0);
-            const curPrefix = sym === 'BTC' ? '$' : (sym === 'INDIAVIX' ? '' : '₹');
+            const curPrefix = (sym === 'INDIAVIX' ? '' : '₹');
 
             valElem.textContent = curPrefix + p.toLocaleString('en-IN', { minimumFractionDigits: 2 });
             chgElem.textContent = `${chg >= 0 ? '+' : ''}${chg.toFixed(2)} (${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%)`;
@@ -781,7 +771,7 @@ class MarketTerminalClient {
 
     updateInternals(analytics) {
         if (!analytics) return;
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const spot = this.previousQuotes[this.activeSymbol] || 0;
         const ind = analytics.indicators || {};
         const flow = analytics.order_flow || {};
@@ -871,7 +861,7 @@ class MarketTerminalClient {
         }
         const optSubElem = document.getElementById('intel-options-sub');
         if (optSubElem) {
-            if (this.activeSymbol === 'BTC') {
+            if (false) {
                 optSubElem.textContent = 'Options feed unavailable for Bitcoin dev mode';
             } else if (optResolved.label === 'Unavailable' || (mi.options_pcr == null && !analytics.options_intelligence?.pcr_oi)) {
                 optSubElem.textContent = 'Option chain feed unavailable (Offline)';
@@ -890,7 +880,7 @@ class MarketTerminalClient {
         // Market Intelligence Footer Strip
         const breadthElem = document.getElementById('intel-breadth-val');
         if (breadthElem) {
-            if (this.activeSymbol === 'BTC') {
+            if (false) {
                 breadthElem.textContent = 'Global Crypto 24/7 Liquidity Flow';
             } else {
                 breadthElem.textContent = `${breadth.advances || 0} Adv / ${breadth.declines || 0} Dec (ADR: ${breadth.adr || 1.0})`;
@@ -1008,7 +998,7 @@ class MarketTerminalClient {
         const container = document.getElementById('forecast-container');
         if (!container || !forecasts.horizons) return;
 
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         container.innerHTML = '';
         for (const [h, fData] of Object.entries(forecasts.horizons)) {
             const dir = fData.direction || 'FLAT';
@@ -1027,7 +1017,7 @@ class MarketTerminalClient {
 
     updateDecision(signals) {
         if (!signals) return;
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const spot = this.previousQuotes[this.activeSymbol] || signals.spot_price || 0;
         this.updateMarketContextHeader();
 
@@ -1284,7 +1274,7 @@ class MarketTerminalClient {
     }
 
     updateSMCTab(analytics, signals) {
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const smc = (analytics && analytics.smc) || (signals && signals.smc_setup) || {};
         const matrix = smc.smc_matrix || {};
         const bos = matrix.bos || null;
@@ -1418,10 +1408,10 @@ class MarketTerminalClient {
     }
 
     updateOptionsTab(analytics) {
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const opt = analytics?.options_intelligence || analytics?.payload?.options_intelligence || (this.cacheAnalytics[this.activeSymbol] && this.cacheAnalytics[this.activeSymbol].options_intelligence) || {};
         const hasPcr = (opt.pcr_oi != null && !isNaN(parseFloat(opt.pcr_oi)) && parseFloat(opt.pcr_oi) > 0);
-        const isUnavailable = (this.activeSymbol === 'BTC' || !hasPcr || opt.status === 'UNAVAILABLE' || opt.status === 'NO_CRYPTO_OPTIONS');
+        const isUnavailable = (false || !hasPcr || opt.status === 'UNAVAILABLE' || opt.status === 'NO_CRYPTO_OPTIONS');
 
         const pcrOiElem = document.getElementById('opt-pcr-oi');
         const pcrSentElem = document.getElementById('opt-pcr-sentiment');
@@ -1449,7 +1439,7 @@ class MarketTerminalClient {
         if (isUnavailable) {
             if (pcrOiElem) { pcrOiElem.textContent = '--'; pcrOiElem.className = 'opt-val text-muted'; }
             if (pcrSentElem) { pcrSentElem.textContent = 'UNAVAILABLE'; pcrSentElem.className = 'opt-badge pill-muted'; }
-            if (pcrVolSub) pcrVolSub.textContent = this.activeSymbol === 'BTC' ? 'Crypto does not trade on NSE Option Chain' : 'Option chain feed unavailable';
+            if (pcrVolSub) pcrVolSub.textContent = false ? 'Crypto does not trade on NSE Option Chain' : 'Option chain feed unavailable';
             if (netOiElem) { netOiElem.textContent = '--'; netOiElem.className = 'opt-val text-muted'; }
             if (oiBiasPill) { oiBiasPill.textContent = 'NO FEED'; oiBiasPill.className = 'opt-badge pill-muted'; }
             if (oiDiffSub) oiDiffSub.textContent = 'Net Open Interest shift unavailable';
@@ -1482,11 +1472,11 @@ class MarketTerminalClient {
             const thetaVegaElem = document.getElementById('opt-greek-theta-vega');
             if (thetaVegaElem) thetaVegaElem.textContent = 'Θ: -- | ν: --';
             const exStatusElem = document.getElementById('opt-exchange-status');
-            if (exStatusElem) exStatusElem.textContent = this.activeSymbol === 'BTC' ? 'N/A' : 'OFFLINE';
+            if (exStatusElem) exStatusElem.textContent = false ? 'N/A' : 'OFFLINE';
             const exBadge = document.getElementById('opt-exchange-badge');
-            if (exBadge) { exBadge.textContent = this.activeSymbol === 'BTC' ? 'NO CRYPTO OPTIONS' : 'UNVERIFIED'; exBadge.className = 'opt-badge pill-muted'; }
+            if (exBadge) { exBadge.textContent = false ? 'NO CRYPTO OPTIONS' : 'UNVERIFIED'; exBadge.className = 'opt-badge pill-muted'; }
             const exSub = document.getElementById('opt-exchange-sub');
-            if (exSub) exSub.textContent = this.activeSymbol === 'BTC' ? 'Crypto instruments do not trade on NSE Option Chain' : 'Options feed not active';
+            if (exSub) exSub.textContent = false ? 'Crypto instruments do not trade on NSE Option Chain' : 'Options feed not active';
             return;
         }
 
@@ -1616,7 +1606,7 @@ class MarketTerminalClient {
     }
 
     updateOrderFlowTab(analytics) {
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const flow = analytics?.order_flow || {};
         const vp = flow.volume_profile || {};
         const vwap = flow.vwap_bands || {};
@@ -1703,7 +1693,7 @@ class MarketTerminalClient {
     }
 
     updatePerformanceTab(analytics) {
-        const curr = this.activeSymbol === 'BTC' ? '$' : '₹';
+        const curr = '₹';
         const perf = analytics?.performance || {};
 
         const statusBadge = document.getElementById('perf-status-badge');
@@ -1859,7 +1849,7 @@ class MarketTerminalClient {
                 pillWs.style.color = '#00e676';
             }
             if (footerWs) {
-                footerWs.textContent = (isClosed && this.activeSymbol !== 'BTC') ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
+                footerWs.textContent = (isClosed && true) ? 'Socket Connected (Idle / Market Closed)' : 'Socket Connected (Live Stream)';
             }
             // Send heartbeat PING if no incoming message for > 10s
             if (now - (this.lastMessageTime || 0) > 10000) {
@@ -1888,7 +1878,7 @@ class MarketTerminalClient {
                         const m = data.market_status;
                         const pElem = document.getElementById('pill-session');
                         if (pElem) {
-                            if (this.activeSymbol === 'BTC') {
+                            if (false) {
                                 pElem.textContent = '24/7 LIVE TRADING';
                                 pElem.style.color = '#00e676';
                             } else if (isClosed) {

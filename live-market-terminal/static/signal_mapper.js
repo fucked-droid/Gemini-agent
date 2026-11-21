@@ -303,9 +303,6 @@
      * Resolves Options Sentiment indicator (Bullish / Bearish / Neutral / Unavailable).
      */
     function resolveOptionsSentiment(optData, activeSymbol) {
-        if (activeSymbol === 'BTC') {
-            return { label: 'Unavailable', badgeClass: 'text-muted' };
-        }
         if (!optData) return { label: 'Unavailable', badgeClass: 'text-muted' };
         const sent = String(optData.sentiment || optData.options_sentiment || optData.sentiment_label || 'Unavailable').trim();
         const upper = sent.toUpperCase();

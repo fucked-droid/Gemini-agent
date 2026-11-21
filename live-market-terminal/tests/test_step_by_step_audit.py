@@ -113,14 +113,14 @@ class TestStepByStepAudit(unittest.TestCase):
         self.mgr.set_provider_status(True)
         self.mgr.set_websocket_status(True, "CONNECTED")
         now_ts = time.time()
-        self.mgr.record_tick("BTC", now_ts)  # BTC is 24/7 open
-
-        btc_stat = self.mgr.get_status("BTC")
-        self.assertEqual(btc_stat["status"], "LIVE")
-        self.assertEqual(btc_stat["data_mode"], "LIVE")
-        self.assertEqual(btc_stat["freshness_status"], "REALTIME")
-        self.assertEqual(btc_stat["validity_status"], "VALID")
-        self.assertFalse(btc_stat["is_stale"])
+        with unittest.mock.patch.object(self.mgr, 'is_session_active', return_value=True):
+            self.mgr.record_tick("NIFTY", now_ts)
+            nifty_stat = self.mgr.get_status("NIFTY")
+            self.assertEqual(nifty_stat["status"], "LIVE")
+            self.assertEqual(nifty_stat["data_mode"], "LIVE")
+            self.assertEqual(nifty_stat["freshness_status"], "REALTIME")
+            self.assertEqual(nifty_stat["validity_status"], "VALID")
+            self.assertFalse(nifty_stat["is_stale"])
 
     # ==========================================================
     # SCENARIO 4: Market open, WebSocket disconnected
@@ -143,13 +143,14 @@ class TestStepByStepAudit(unittest.TestCase):
     def test_scenario_5_live_data_stale_detection(self):
         """Stalled ticks (> 15s) during active trading triggers STALE and DEGRADED."""
         stale_ts = time.time() - 30.0
-        self.mgr.last_tick_timestamps["BTC"] = stale_ts
-
-        stat = self.mgr.get_status("BTC")
-        self.assertEqual(stat["status"], "STALE")
-        self.assertEqual(stat["freshness_status"], "STALE")
-        self.assertEqual(stat["validity_status"], "DEGRADED")
-        self.assertTrue(stat["is_stale"])
+        self.mgr.set_provider_status(True)
+        with unittest.mock.patch.object(self.mgr, 'is_session_active', return_value=True):
+            self.mgr.record_tick("NIFTY", stale_ts)
+            stat = self.mgr.get_status("NIFTY")
+            self.assertEqual(stat["status"], "STALE")
+            self.assertEqual(stat["freshness_status"], "STALE")
+            self.assertEqual(stat["validity_status"], "DEGRADED")
+            self.assertTrue(stat["is_stale"])
 
     # ==========================================================
     # SCENARIO 6: Options feed unavailable
@@ -183,15 +184,14 @@ class TestStepByStepAudit(unittest.TestCase):
         self.assertNotEqual(nifty_cache, bn_cache)
 
     # ==========================================================
-    # SCENARIO 8: Instrument switched from BANKNIFTY to BTC
+    # SCENARIO 8: Instrument switched from NIFTY to BANKNIFTY
     # ==========================================================
-    def test_scenario_8_instrument_switch_to_btc(self):
-        """Switching to BTC disables NSE breadth and options completely."""
-        web_server.process_symbol_pipeline("BTC")
-        btc_cache = self.cache.analytics.get("BTC", {})
-
-        self.assertEqual(btc_cache.get("market_breadth", {}).get("status"), "NOT_APPLICABLE")
-        self.assertEqual(btc_cache.get("options_intelligence", {}).get("status"), "NO_CRYPTO_OPTIONS")
+    def test_scenario_8_instrument_switch_to_banknifty(self):
+        """Switching between NIFTY and BANKNIFTY maintains isolated pipelines."""
+        web_server.process_symbol_pipeline("BANKNIFTY")
+        bn_cache = self.cache.analytics.get("BANKNIFTY", {})
+        self.assertIsNotNone(bn_cache)
+        self.assertIn("market_intelligence", bn_cache)
 
     # ==========================================================
     # SCENARIO 9: Historical data loaded after a refresh

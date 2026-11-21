@@ -78,16 +78,6 @@ MONITORED_INSTRUMENTS = {
         "lot_size": 1,
         "tick_size": 0.01,
     },
-    "BTC": {
-        "symbol": "BTC",
-        "name": "Bitcoin (BTC/USD 24/7)",
-        "exchange": "CRYPTO_24_7",
-        "segment": "CRYPTO",
-        "security_id": "BTCUSD",
-        "lot_size": 1,
-        "tick_size": 0.1,
-        "currency": "$",
-    },
 }
 
 # Top NIFTY Constituents for Breadth & Heavyweight Tracking

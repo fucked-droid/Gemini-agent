@@ -94,9 +94,7 @@ def fetch_direct_ticks() -> dict:
             logger.debug(f"Quote fetch error for {sym}: {qe}")
 
     try:
-        btc = CryptoFeed.get_live_quote("BTC")
-        if btc:
-            quotes["BTC"] = btc
+        # Only Indian market quotes forwarded
     except Exception as ce:
         logger.debug(f"Crypto fetch error: {ce}")
 

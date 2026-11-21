@@ -103,11 +103,11 @@ assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 58.0 }).lab
 assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 42.0 }).label, 'Sellers Dominating');
 assert.strictEqual(SignalMapper.resolveOrderFlow({ buyer_percentage: 50.0 }).label, 'Balanced');
 
-// Options Sentiment (Positive / Negative / Neutral / Unavailable)
-assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Positive' }, 'NIFTY').label, 'Positive');
-assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Negative' }, 'BANKNIFTY').label, 'Negative');
+// Options Sentiment (Bullish / Bearish / Neutral / Unavailable)
+assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Bullish' }, 'NIFTY').label, 'Bullish');
+assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Bearish' }, 'BANKNIFTY').label, 'Bearish');
 assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Neutral' }, 'NIFTY').label, 'Neutral');
-assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Positive' }, 'BTC').label, 'Unavailable');
+assert.strictEqual(SignalMapper.resolveOptionsSentiment({ sentiment: 'Bullish' }, 'UNKNOWN').label, 'Bullish');
 assert.strictEqual(SignalMapper.resolveOptionsSentiment(null, 'NIFTY').label, 'Unavailable');
 
 // 4. Test Key Watch Levels
