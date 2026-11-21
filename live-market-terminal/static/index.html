@@ -77,6 +77,7 @@
                         <button class="btn-tf" data-tf="3m">3 MIN</button>
                         <button class="btn-tf active" data-tf="5m">5 MIN</button>
                         <button class="btn-tf" data-tf="15m">15 MIN</button>
+                        <button class="btn-tf" data-tf="30m">30 MIN</button>
                     </div>
                 </div>
             </div>
@@ -362,11 +363,12 @@
         <div class="chart-section-grid">
             <!-- Left: Financial Price & Indicators Chart -->
             <div class="card chart-card">
-                <div class="card-header">
+                <div class="card-header chart-panel-header">
                     <div class="chart-title">
                         <span id="chart-symbol-label">NIFTY 50</span>
                         <span class="chart-tf-label" id="chart-tf-label">(5m)</span>
                         <span class="price-headline" id="current-spot-price">₹--,--</span>
+                        <span class="chart-status-badge badge-historical" id="chart-data-mode-badge">HISTORICAL</span>
                     </div>
                     <div class="chart-indicators">
                         <span class="legend-chip chip-ema10">EMA 10: <b id="legend-ema10">--</b></span>
@@ -374,8 +376,36 @@
                         <span class="legend-chip chip-vwap">VWAP: <b id="legend-vwap">--</b></span>
                     </div>
                 </div>
-                <div class="chart-canvas-container">
+
+                <!-- Chart Status & Meta Strip -->
+                <div class="chart-meta-bar" id="chart-meta-bar">
+                    <div class="meta-item"><span class="meta-label">INSTRUMENT:</span> <b id="chart-meta-sym">NIFTY 50</b></div>
+                    <div class="meta-item"><span class="meta-label">TIMEFRAME:</span> <b id="chart-meta-tf">5 MIN</b></div>
+                    <div class="meta-item"><span class="meta-label">CANDLE CLOSE:</span> <b id="chart-meta-candle-time">--:-- IST</b></div>
+                    <div class="meta-item"><span class="meta-label">LAST UPDATED:</span> <b id="chart-meta-updated">--</b></div>
+                    <div class="meta-item chart-ohlc-live" id="chart-ohlc-live">
+                        <span>O: <b id="live-ohlc-o">--</b></span>
+                        <span>H: <b id="live-ohlc-h">--</b></span>
+                        <span>L: <b id="live-ohlc-l">--</b></span>
+                        <span>C: <b id="live-ohlc-c">--</b></span>
+                        <span>VOL: <b id="live-ohlc-v">--</b></span>
+                    </div>
+                </div>
+
+                <!-- Price Candlestick & Indicator Canvas -->
+                <div class="chart-canvas-container price-chart-container">
                     <canvas id="priceChart"></canvas>
+                </div>
+
+                <!-- Dedicated Volume Panel Below Price Chart -->
+                <div class="chart-volume-container">
+                    <div class="volume-panel-header">
+                        <span class="vol-panel-title">VOLUME HISTOGRAM</span>
+                        <span class="vol-hover-info" id="vol-hover-info">Vol: <b id="vol-panel-latest">--</b></span>
+                    </div>
+                    <div class="vol-canvas-wrap">
+                        <canvas id="volumeChart"></canvas>
+                    </div>
                 </div>
             </div>
 

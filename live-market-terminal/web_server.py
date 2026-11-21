@@ -523,17 +523,27 @@ def get_overview():
 def get_candles(symbol: str = "NIFTY", timeframe: str = "5m"):
     """
     Returns chart-ready OHLCV candle bars and indicator series for the specified timeframe.
+    Fetches direct candles with adequate historical lookback to guarantee proper EMA 10/20
+    and VWAP convergence across all supported resolutions (1m, 3m, 5m, 15m, 30m).
     """
     sym = symbol.upper()
     tf = timeframe.lower()
-    df_raw = cache.get_candles(sym, tf)
-
+    
+    # 1. Fetch direct candles from client (using at least 5-15 days for robust EMA/VWAP initialization)
+    days_map = {"1m": 2, "3m": 5, "5m": 5, "15m": 15, "30m": 15}
+    days = days_map.get(tf, 5)
+    
+    df_raw = client.get_historical_candles(sym, interval=tf, days=days)
     if df_raw is None or df_raw.empty:
-        # Fallback fetch
-        df_1m = client.get_historical_candles(sym, interval="1m", days=2)
-        suite = HistoricalDataManager.build_timeframe_suite(df_1m)
-        cache.set_candles(sym, suite)
-        df_raw = suite.get(tf, df_1m)
+        # Fallback to cache or 1m suite resampling
+        df_cached = cache.get_candles(sym, tf)
+        if df_cached is not None and not df_cached.empty:
+            df_raw = df_cached
+        else:
+            df_1m = client.get_historical_candles(sym, interval="1m", days=2)
+            suite = HistoricalDataManager.build_timeframe_suite(df_1m)
+            cache.set_candles(sym, suite)
+            df_raw = suite.get(tf, df_1m)
 
     df_enriched, _ = TechnicalIndicators.calculate_all(df_raw)
     order_flow = OrderFlowAnalyzer.compute_volume_delta(df_raw)

@@ -41,7 +41,9 @@ class MarketTerminalClient {
         this.cacheForecasts = {};
         this.systemStatus = {};
         this.priceChart = null;
+        this.volumeChart = null;
         this.cvdChart = null;
+        this.currentCandlesData = []; // Cached array of raw candle objects for crosshair and live ticks
 
         this.initDOM();
         this.initCharts();
@@ -341,17 +343,23 @@ class MarketTerminalClient {
         const optSub = document.getElementById('intel-options-sub');
         if (optSub) optSub.textContent = false ? 'Options feed unavailable for Bitcoin dev mode' : 'Put-Call Ratio & OI Distribution';
 
-        // 5. Reset Price and CVD Charts
+        // 5. Reset Price, Volume and CVD Charts
         if (this.priceChart) {
             this.priceChart.data.labels = [];
             this.priceChart.data.datasets.forEach(ds => { ds.data = []; });
             this.priceChart.update('none');
+        }
+        if (this.volumeChart) {
+            this.volumeChart.data.labels = [];
+            this.volumeChart.data.datasets.forEach(ds => { ds.data = []; });
+            this.volumeChart.update('none');
         }
         if (this.cvdChart) {
             this.cvdChart.data.labels = [];
             this.cvdChart.data.datasets.forEach(ds => { ds.data = []; });
             this.cvdChart.update('none');
         }
+        this.currentCandlesData = [];
 
         // 6. Reset Options Tab
         this.clearOptionsTab(curr);
@@ -425,6 +433,98 @@ class MarketTerminalClient {
     }
 
     initCharts() {
+        const self = this;
+
+        // Custom Candlestick & Crosshair Plugin for Price Chart
+        const candlestickPlugin = {
+            id: 'candlestickPlugin',
+            afterDatasetsDraw(chart, args, options) {
+                const { ctx, data, chartArea: { top, bottom, left, right, width, height }, scales: { x, y } } = chart;
+                const candleDataset = data.datasets[0];
+                if (!candleDataset || !candleDataset.candles || candleDataset.candles.length === 0) return;
+
+                ctx.save();
+                const count = candleDataset.candles.length;
+                const slotWidth = width / count;
+                const candleWidth = Math.max(3, Math.min(18, slotWidth * 0.65));
+
+                candleDataset.candles.forEach((c, index) => {
+                    const xCenter = x.getPixelForValue(index);
+                    if (xCenter < left - 20 || xCenter > right + 20) return;
+
+                    const yOpen = y.getPixelForValue(c.open);
+                    const yClose = y.getPixelForValue(c.close);
+                    const yHigh = y.getPixelForValue(c.high);
+                    const yLow = y.getPixelForValue(c.low);
+
+                    const isBullish = c.close >= c.open;
+                    const candleColor = isBullish ? '#00e676' : '#ff1744';
+                    const wickColor = isBullish ? '#00e676' : '#ff1744';
+
+                    // 1. Draw High-Low Wick
+                    ctx.strokeStyle = wickColor;
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(xCenter, yHigh);
+                    ctx.lineTo(xCenter, yLow);
+                    ctx.stroke();
+
+                    // 2. Draw Candle Real Body
+                    const bodyTop = Math.min(yOpen, yClose);
+                    const bodyHeight = Math.max(1.5, Math.abs(yClose - yOpen));
+
+                    ctx.fillStyle = candleColor;
+                    ctx.fillRect(xCenter - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+
+                    // Subtle border for crispness on dark background
+                    ctx.strokeStyle = isBullish ? '#00c853' : '#d50000';
+                    ctx.lineWidth = 0.8;
+                    ctx.strokeRect(xCenter - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+                });
+
+                // 3. Draw Interactive Crosshair if active
+                if (chart._crosshair && chart._crosshair.active) {
+                    const chX = chart._crosshair.x;
+                    const chY = chart._crosshair.y;
+
+                    if (chX >= left && chX <= right && chY >= top && chY <= bottom) {
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([4, 4]);
+
+                        // Vertical crosshair
+                        ctx.beginPath();
+                        ctx.moveTo(chX, top);
+                        ctx.lineTo(chX, bottom);
+                        ctx.stroke();
+
+                        // Horizontal crosshair
+                        ctx.beginPath();
+                        ctx.moveTo(left, chY);
+                        ctx.lineTo(right, chY);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        // Price tag on Y-axis
+                        const priceVal = y.getValueForPixel(chY);
+                        if (priceVal != null && !isNaN(priceVal)) {
+                            ctx.fillStyle = '#1f2937';
+                            ctx.strokeStyle = '#00e5ff';
+                            ctx.lineWidth = 1;
+                            const priceText = '₹' + Number(priceVal).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                            ctx.font = '10px "JetBrains Mono"';
+                            const textW = ctx.measureText(priceText).width;
+                            ctx.fillRect(right - 2, chY - 9, textW + 12, 18);
+                            ctx.strokeRect(right - 2, chY - 9, textW + 12, 18);
+                            ctx.fillStyle = '#00e5ff';
+                            ctx.fillText(priceText, right + 4, chY + 3);
+                        }
+                    }
+                }
+                ctx.restore();
+            }
+        };
+
         // 1. Primary Price & Indicators Chart
         const priceCtx = document.getElementById('priceChart').getContext('2d');
         this.priceChart = new Chart(priceCtx, {
@@ -433,13 +533,12 @@ class MarketTerminalClient {
                 labels: [],
                 datasets: [
                     {
-                        label: 'Price',
+                        label: 'Candlesticks',
                         data: [],
-                        borderColor: '#f0f6fc',
-                        backgroundColor: 'rgba(240, 246, 252, 0.05)',
-                        borderWidth: 2,
-                        tension: 0.1,
-                        fill: false,
+                        candles: [],
+                        type: 'line',
+                        borderColor: 'transparent',
+                        backgroundColor: 'transparent',
                         pointRadius: 0,
                     },
                     {
@@ -469,10 +568,12 @@ class MarketTerminalClient {
                     }
                 ]
             },
+            plugins: [candlestickPlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
+                events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
                 interaction: {
                     mode: 'index',
                     intersect: false,
@@ -480,21 +581,130 @@ class MarketTerminalClient {
                 scales: {
                     x: {
                         grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                        ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } }
+                        ticks: {
+                            color: '#8b949e',
+                            font: { family: 'JetBrains Mono', size: 10 },
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 10,
+                            callback: function(value, index, ticks) {
+                                const label = this.getLabelForValue(value);
+                                if (!label) return '';
+                                if (self.activeTimeframe === '1m') {
+                                    const min = parseInt(label.substring(3, 5), 10);
+                                    return (min % 15 === 0) ? label : '';
+                                } else if (self.activeTimeframe === '3m' || self.activeTimeframe === '5m') {
+                                    const min = parseInt(label.substring(3, 5), 10);
+                                    return (min === 0 || min === 30) ? label : '';
+                                } else if (self.activeTimeframe === '15m' || self.activeTimeframe === '30m') {
+                                    return label;
+                                }
+                                return label;
+                            }
+                        }
                     },
                     y: {
                         position: 'right',
                         grid: { color: 'rgba(255, 255, 255, 0.04)' },
-                        ticks: { color: '#8b949e', font: { family: 'JetBrains Mono', size: 10 } }
+                        ticks: {
+                            color: '#8b949e',
+                            font: { family: 'JetBrains Mono', size: 10 },
+                            callback: function(value) {
+                                return '₹' + Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+                            }
+                        }
                     }
                 },
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        enabled: false,
+                        external: function(context) {
+                            const { chart, tooltip } = context;
+                            if (tooltip.opacity === 0) {
+                                chart._crosshair = { active: false };
+                                chart.draw();
+                                return;
+                            }
+                            const activeIdx = tooltip.dataPoints && tooltip.dataPoints[0] ? tooltip.dataPoints[0].dataIndex : null;
+                            if (activeIdx == null) return;
+
+                            chart._crosshair = {
+                                active: true,
+                                x: tooltip.caretX,
+                                y: tooltip.caretY
+                            };
+                            chart.draw();
+
+                            const candle = self.currentCandlesData && self.currentCandlesData[activeIdx];
+                            if (candle) {
+                                self.updateChartHoverBar(candle);
+                            }
+                        }
+                    }
                 }
             }
         });
 
-        // 2. Cumulative Volume Delta (CVD) Chart
+        // 2. Dedicated Volume Histogram Chart
+        const volCanvas = document.getElementById('volumeChart');
+        if (volCanvas) {
+            const volCtx = volCanvas.getContext('2d');
+            this.volumeChart = new Chart(volCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Volume',
+                        data: [],
+                        backgroundColor: [],
+                        borderColor: [],
+                        borderWidth: 1,
+                        borderRadius: 1,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            position: 'right',
+                            grid: { color: 'rgba(255, 255, 255, 0.02)' },
+                            ticks: {
+                                color: '#6e7681',
+                                font: { family: 'JetBrains Mono', size: 8 },
+                                maxTicksLimit: 3,
+                                callback: function(val) {
+                                    if (val >= 1e7) return (val / 1e7).toFixed(1) + ' Cr';
+                                    if (val >= 1e5) return (val / 1e5).toFixed(1) + ' L';
+                                    if (val >= 1e3) return (val / 1e3).toFixed(0) + ' k';
+                                    return val;
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
+            });
+        }
+
+        // Attach crosshair mouse-out listener to restore live OHLC state
+        priceCtx.canvas.addEventListener('mouseleave', () => {
+            if (this.priceChart) {
+                this.priceChart._crosshair = { active: false };
+                this.priceChart.draw();
+            }
+            if (this.currentCandlesData && this.currentCandlesData.length > 0) {
+                this.updateChartHoverBar(this.currentCandlesData[this.currentCandlesData.length - 1]);
+            }
+        });
+
+        // 3. Cumulative Volume Delta (CVD) Chart
         const cvdCtx = document.getElementById('cvdChart').getContext('2d');
         this.cvdChart = new Chart(cvdCtx, {
             type: 'line',
@@ -2000,39 +2210,147 @@ class MarketTerminalClient {
         }
     }
 
+    updateChartHoverBar(candle) {
+        if (!candle) return;
+        const curr = '₹';
+        const oElem = document.getElementById('live-ohlc-o');
+        const hElem = document.getElementById('live-ohlc-h');
+        const lElem = document.getElementById('live-ohlc-l');
+        const cElem = document.getElementById('live-ohlc-c');
+        const vElem = document.getElementById('live-ohlc-v');
+        const volHover = document.getElementById('vol-panel-latest');
+
+        if (oElem) oElem.textContent = candle.open != null ? `${curr}${Number(candle.open).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : '--';
+        if (hElem) hElem.textContent = candle.high != null ? `${curr}${Number(candle.high).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : '--';
+        if (lElem) lElem.textContent = candle.low != null ? `${curr}${Number(candle.low).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : '--';
+        if (cElem) {
+            cElem.textContent = candle.close != null ? `${curr}${Number(candle.close).toLocaleString('en-IN', { minimumFractionDigits: 1 })}` : '--';
+            const isBull = candle.close >= candle.open;
+            cElem.style.color = isBull ? '#00e676' : '#ff1744';
+        }
+        if (vElem) {
+            const vol = candle.volume || 0;
+            vElem.textContent = vol > 1e5 ? (vol / 1e5).toFixed(2) + ' L' : vol.toLocaleString('en-IN');
+        }
+        if (volHover) {
+            const vol = candle.volume || 0;
+            volHover.textContent = `${vol.toLocaleString('en-IN')} shares`;
+        }
+
+        // Update top indicator chips to reflect the hovered candle's exact indicator values
+        const lEma10 = document.getElementById('legend-ema10');
+        const lEma20 = document.getElementById('legend-ema20');
+        const lVwap = document.getElementById('legend-vwap');
+        if (lEma10 && candle.ema10 != null) lEma10.textContent = `${curr}${Number(candle.ema10).toFixed(1)}`;
+        if (lEma20 && candle.ema20 != null) lEma20.textContent = `${curr}${Number(candle.ema20).toFixed(1)}`;
+        if (lVwap && candle.vwap != null) lVwap.textContent = `${curr}${Number(candle.vwap).toFixed(1)}`;
+
+        // Update candle time in metadata strip
+        const cTimeElem = document.getElementById('chart-meta-candle-time');
+        if (cTimeElem && candle.time) {
+            const tStr = candle.time.length >= 16 ? candle.time.substring(11, 16) : candle.time;
+            cTimeElem.textContent = `${tStr} IST`;
+        }
+    }
+
     async fetchHistoricalCandles() {
         try {
             const resp = await fetch(`/api/candles?symbol=${this.activeSymbol}&timeframe=${this.activeTimeframe}`);
             const data = await resp.json();
             if (data.bars && data.bars.length > 0) {
+                this.currentCandlesData = data.bars;
+
                 const labels = data.bars.map(b => b.time.substring(11, 16));
                 const closes = data.bars.map(b => b.close);
                 const ema10 = data.bars.map(b => b.ema10);
                 const ema20 = data.bars.map(b => b.ema20);
                 const vwap = data.bars.map(b => b.vwap);
                 const cvd = data.bars.map(b => b.cvd);
+                const volumes = data.bars.map(b => b.volume);
+                const volColors = data.bars.map(b => b.close >= b.open ? 'rgba(0, 230, 118, 0.45)' : 'rgba(255, 23, 68, 0.45)');
+                const volBorders = data.bars.map(b => b.close >= b.open ? '#00e676' : '#ff1744');
 
-                // Update Price Chart
-                this.priceChart.data.labels = labels;
-                this.priceChart.data.datasets[0].data = closes;
-                this.priceChart.data.datasets[1].data = ema10;
-                this.priceChart.data.datasets[2].data = ema20;
-                this.priceChart.data.datasets[3].data = vwap;
-                this.priceChart.update('none');
+                // 1. Update Price Chart (Candlesticks + EMAs + VWAP)
+                if (this.priceChart) {
+                    this.priceChart.data.labels = labels;
+                    this.priceChart.data.datasets[0].data = closes;
+                    this.priceChart.data.datasets[0].candles = data.bars;
+                    this.priceChart.data.datasets[1].data = ema10;
+                    this.priceChart.data.datasets[2].data = ema20;
+                    this.priceChart.data.datasets[3].data = vwap;
+                    this.priceChart.update('none');
+                }
 
-                // Update CVD Chart
-                this.cvdChart.data.labels = labels;
-                this.cvdChart.data.datasets[0].data = cvd;
-                const lastCvd = cvd[cvd.length - 1] || 0;
-                this.cvdChart.data.datasets[0].borderColor = lastCvd >= 0 ? '#00e676' : '#ff1744';
-                this.cvdChart.data.datasets[0].backgroundColor = lastCvd >= 0 ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)';
-                this.cvdChart.update('none');
+                // 2. Update Volume Histogram Chart
+                if (this.volumeChart) {
+                    this.volumeChart.data.labels = labels;
+                    this.volumeChart.data.datasets[0].data = volumes;
+                    this.volumeChart.data.datasets[0].backgroundColor = volColors;
+                    this.volumeChart.data.datasets[0].borderColor = volBorders;
+                    this.volumeChart.update('none');
+                }
+
+                // 3. Update CVD Chart
+                if (this.cvdChart) {
+                    this.cvdChart.data.labels = labels;
+                    this.cvdChart.data.datasets[0].data = cvd;
+                    const lastCvd = cvd[cvd.length - 1] || 0;
+                    this.cvdChart.data.datasets[0].borderColor = lastCvd >= 0 ? '#00e676' : '#ff1744';
+                    this.cvdChart.data.datasets[0].backgroundColor = lastCvd >= 0 ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 23, 68, 0.12)';
+                    this.cvdChart.update('none');
+                }
 
                 const cvdLatest = document.getElementById('cvd-latest-val');
                 if (cvdLatest) cvdLatest.textContent = `${lastCvd >= 0 ? '+' : ''}${lastCvd} contracts`;
+
+                // 4. Update Section 5 Header & Metadata Strip
+                const lastBar = data.bars[data.bars.length - 1];
+                this.updateChartHoverBar(lastBar);
+
+                const spotPrice = document.getElementById('current-spot-price');
+                if (spotPrice && lastBar.close != null) {
+                    spotPrice.textContent = `₹${Number(lastBar.close).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                }
+
+                const metaSym = document.getElementById('chart-meta-sym');
+                if (metaSym) metaSym.textContent = this.activeSymbol === 'BANKNIFTY' ? 'BANKNIFTY' : 'NIFTY 50';
+
+                const metaTf = document.getElementById('chart-meta-tf');
+                if (metaTf) metaTf.textContent = `${this.activeTimeframe.toUpperCase()} RESOLUTION`;
+
+                const metaUpdated = document.getElementById('chart-meta-updated');
+                if (metaUpdated) {
+                    const upTime = data.last_updated_timestamp || data.timestamp || lastBar.time;
+                    metaUpdated.textContent = String(upTime).replace(/^LAST UPDATED:\s*/i, '');
+                }
+
+                // Chart Data Mode Badge (LIVE / HISTORICAL / STALE / UNAVAILABLE)
+                const modeBadge = document.getElementById('chart-data-mode-badge');
+                if (modeBadge) {
+                    const symStat = (this.marketDataStatus && this.marketDataStatus[this.activeSymbol]) || {};
+                    const isClosed = symStat.is_market_closed || (symStat.operating_state === 'MARKET_CLOSED') || (symStat.session_active === false);
+                    if (isClosed) {
+                        modeBadge.textContent = 'HISTORICAL';
+                        modeBadge.className = 'chart-status-badge badge-historical';
+                    } else if (symStat.status === 'LIVE') {
+                        modeBadge.textContent = 'LIVE';
+                        modeBadge.className = 'chart-status-badge badge-live';
+                    } else if (symStat.status === 'STALE') {
+                        modeBadge.textContent = 'STALE';
+                        modeBadge.className = 'chart-status-badge badge-stale';
+                    } else {
+                        modeBadge.textContent = data.data_mode || 'HISTORICAL';
+                        modeBadge.className = 'chart-status-badge badge-historical';
+                    }
+                }
             }
         } catch (err) {
             console.error('[API] Failed to fetch candles:', err);
+            const modeBadge = document.getElementById('chart-data-mode-badge');
+            if (modeBadge) {
+                modeBadge.textContent = 'UNAVAILABLE';
+                modeBadge.className = 'chart-status-badge badge-unavailable';
+            }
         }
     }
 
